@@ -12,6 +12,7 @@ pandas = "*"
 milagro-bls-binding = "*"
 matplotlib = "*"
 cadcad = {editable = true, path = "./cadCAD"}
+nest-asyncio = "*"
 
 [requires]
 python_version = "3.8"

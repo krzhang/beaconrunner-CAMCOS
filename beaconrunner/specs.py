@@ -1,7 +1,8 @@
 from eth2spec.config.config_util import apply_constants_config
 from typing import (
-    Any, Callable, Dict, Set, Sequence, Tuple, Optional, TypeVar
+    Any, Dict, Set, Sequence, NewType, Tuple, TypeVar, Callable, Optional
 )
+from typing import List as PyList
 
 from dataclasses import (
     dataclass,
@@ -12,18 +13,23 @@ from lru import LRU
 
 from eth2spec.utils.ssz.ssz_impl import hash_tree_root
 from eth2spec.utils.ssz.ssz_typing import (
-    View, boolean, Container, List, Vector, uint64,
-    Bytes1, Bytes4, Bytes32, Bytes48, Bytes96, Bitlist, Bitvector,
+    View, boolean, Container, List, Vector, uint8, uint32, uint64, bit,
+    ByteList, ByteVector, Bytes1, Bytes4, Bytes32, Bytes48, Bytes96, Bitlist, Bitvector,
 )
+
 from eth2spec.utils import bls
 bls.bls_active = False
 
 from eth2spec.utils.hash_function import hash
 
+# Whenever phase 1 is loaded, make sure we have the latest phase0
+# from importlib import reload
+# reload(phase0)
+
 SSZObject = TypeVar('SSZObject', bound=View)
 
 
-fork = 'phase0'
+fork = 'phase1'
 
 class Slot(uint64):
     pass
@@ -70,6 +76,14 @@ class BLSPubkey(Bytes48):
 
 
 class BLSSignature(Bytes96):
+    pass
+
+
+class Shard(uint64):
+    pass
+
+
+class OnlineEpochs(uint8):
     pass
 
 
@@ -180,6 +194,12 @@ class AttestationData(Container):
     # FFG vote
     source: Checkpoint
     target: Checkpoint
+    # Shard vote
+    shard: Shard
+    # Current-slot shard block root
+    shard_head_root: Root
+    # Shard transition root
+    shard_transition_root: Root
 
 
 class IndexedAttestation(Container):

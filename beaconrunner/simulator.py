@@ -138,6 +138,24 @@ def propose_policy(_params, step, sL, s):
 
     return ({ 'blocks': produced_blocks })
 
+### Chunk Challenge Response
+
+# def chunk_response_policy(_params, step, sL, s):
+
+#     # Pinging validators to check if anyone wants to propose a block
+
+#     network = s['network']
+#     responses = []
+
+#     for validator_index, validator in enumerate(network.validators):
+#         known_items = knowledge_set(network, validator_index)
+#         chunk_response = validator.chunk_response(known_items)
+#         if chunk_response is not None:
+#             responses.append(chunk_response)
+
+#     return ({ 'chunk_responses': responses })
+
+  
 ### Simulator shell
 
 class SimulationParameters:

@@ -10,12 +10,25 @@ from dataclasses import (
 )
 
 from lru import LRU
-
-from eth2spec.utils.ssz.ssz_impl import hash_tree_root, uint_to_bytes
+from remerkleable.basic import uint
+from eth2spec.utils.ssz.ssz_impl import hash_tree_root
 from eth2spec.utils.ssz.ssz_typing import (
     View, boolean, Container, List, Vector, uint8, uint32, uint64, bit,
     ByteList, ByteVector, Bytes1, Bytes4, Bytes32, Bytes48, Bytes96, Bitlist, Bitvector,
 )
+
+def serialize(obj: View) -> bytes:
+    return obj.encode_bytes()
+
+def uint_to_bytes(n: uint) -> bytes:
+    return serialize(n)
+
+
+V = TypeVar('V', bound=View)
+
+# Helper method for typing copies, and avoiding a example_input.copy() method call, instead of copy(example_input)
+def copy(obj: V) -> V:
+    return obj.copy()
 
 from eth2spec.utils import bls
 bls.bls_active = False
@@ -569,7 +582,7 @@ class FullAttestationData(Container):
     # Current-slot shard block root
     shard_head_root: Root
     # Full shard transition
-    shard_transition: ShardTransition
+#    shard_transition: ShardTransition
 
 
 class FullAttestation(Container):
@@ -1038,7 +1051,7 @@ def initialize_beacon_state_from_eth1(eth1_block_hash: Bytes32,
         epoch=GENESIS_EPOCH,
     )
     state = BeaconState(
-        genesis_time=eth1_timestamp - eth1_timestamp % MIN_GENESIS_DELAY + 2 * MIN_GENESIS_DELAY,
+        genesis_time=eth1_timestamp + GENESIS_DELAY,
         fork=fork,
         eth1_data=Eth1Data(block_hash=eth1_block_hash, deposit_count=len(deposits)),
         latest_block_header=BeaconBlockHeader(body_root=hash_tree_root(BeaconBlockBody())),

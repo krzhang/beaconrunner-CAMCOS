@@ -11,7 +11,7 @@ from dataclasses import (
 
 from lru import LRU
 
-from eth2spec.utils.ssz.ssz_impl import hash_tree_root
+from eth2spec.utils.ssz.ssz_impl import hash_tree_root, uint_to_bytes
 from eth2spec.utils.ssz.ssz_typing import (
     View, boolean, Container, List, Vector, uint8, uint32, uint64, bit,
     ByteList, ByteVector, Bytes1, Bytes4, Bytes32, Bytes48, Bytes96, Bitlist, Bitvector,
@@ -86,9 +86,10 @@ class Shard(uint64):
 class OnlineEpochs(uint8):
     pass
 
-
-def ceillog2(x: uint64) -> int:
-    return (x - 1).bit_length()
+def ceillog2(x: int) -> uint64:
+    if x < 1:
+        raise ValueError(f"ceillog2 accepts only positive values, x={x}")
+    return uint64((x - 1).bit_length())
 
 GENESIS_SLOT = Slot(0)
 GENESIS_EPOCH = Epoch(0)
@@ -197,6 +198,7 @@ MINOR_REWARD_QUOTIENT = uint64(2**8)
 
 apply_constants_config(globals())
 
+
 class Fork(Container):
     previous_version: Version
     current_version: Version
@@ -223,7 +225,14 @@ class Validator(Container):
     activation_epoch: Epoch
     exit_epoch: Epoch
     withdrawable_epoch: Epoch  # When validator can withdraw funds
-
+    # Custody game
+    # next_custody_secret_to_reveal is initialised to the custody period
+    # (of the particular validator) in which the validator is activated
+    # = get_custody_period_for_validator(...)
+    next_custody_secret_to_reveal: uint64
+    # TODO: The max_reveal_lateness doesn't really make sense anymore.
+    # So how do we incentivise early custody key reveals now?
+    all_custody_secrets_revealed_epoch: Epoch  # to be initialized to FAR_FUTURE_EPOCH
 
 class AttestationData(Container):
     slot: Slot
@@ -234,11 +243,11 @@ class AttestationData(Container):
     source: Checkpoint
     target: Checkpoint
     # Shard vote
-    shard: Shard
+#    shard: Shard
     # Current-slot shard block root
-    shard_head_root: Root
+#    shard_head_root: Root
     # Shard transition root
-    shard_transition_root: Root
+#    shard_transition_root: Root
 
 
 class IndexedAttestation(Container):
@@ -252,6 +261,8 @@ class PendingAttestation(Container):
     data: AttestationData
     inclusion_delay: Slot
     proposer_index: ValidatorIndex
+    # Phase 1
+    crosslink_success: boolean
 
 
 class Eth1Data(Container):
@@ -311,70 +322,13 @@ class VoluntaryExit(Container):
     epoch: Epoch  # Earliest epoch when voluntary exit can be processed
     validator_index: ValidatorIndex
 
-class BeaconState(Container):
-    # Versioning
-    genesis_time: uint64
-    genesis_validators_root: Root
-    slot: Slot
-    fork: Fork
-    # History
-    latest_block_header: BeaconBlockHeader
-    block_roots: Vector[Root, SLOTS_PER_HISTORICAL_ROOT]
-    state_roots: Vector[Root, SLOTS_PER_HISTORICAL_ROOT]
-    historical_roots: List[Root, HISTORICAL_ROOTS_LIMIT]
-    # Eth1
-    eth1_data: Eth1Data
-    eth1_data_votes: List[Eth1Data, EPOCHS_PER_ETH1_VOTING_PERIOD * SLOTS_PER_EPOCH]
-    eth1_deposit_index: uint64
-    # Registry
-    validators: List[Validator, VALIDATOR_REGISTRY_LIMIT]
-    balances: List[Gwei, VALIDATOR_REGISTRY_LIMIT]
-    # Randomness
-    randao_mixes: Vector[Root, EPOCHS_PER_HISTORICAL_VECTOR]
-    # Slashings
-    slashings: Vector[Gwei, EPOCHS_PER_SLASHINGS_VECTOR]  # Per-epoch sums of slashed effective balances
-    # Attestations
-    previous_epoch_attestations: List[PendingAttestation, MAX_ATTESTATIONS * SLOTS_PER_EPOCH]
-    current_epoch_attestations: List[PendingAttestation, MAX_ATTESTATIONS * SLOTS_PER_EPOCH]
-    # Finality
-    justification_bits: Bitvector[JUSTIFICATION_BITS_LENGTH]  # Bit set for every recent justified epoch
-    previous_justified_checkpoint: Checkpoint  # Previous epoch snapshot
-    current_justified_checkpoint: Checkpoint
-    finalized_checkpoint: Checkpoint
-    # Phase 1
-    current_epoch_start_shard: Shard
-#    shard_states: List[ShardState, MAX_SHARDS]
-    online_countdown: List[OnlineEpochs, VALIDATOR_REGISTRY_LIMIT]  # not a raw byte array, considered its large size.
-#    current_light_committee: CompactCommittee
-#    next_light_committee: CompactCommittee
-    # Custody game
-    # Future derived secrets already exposed; contains the indices of the exposed validator
-    # at RANDAO reveal period % EARLY_DERIVED_SECRET_PENALTY_MAX_FUTURE_EPOCHS
-    exposed_derived_secrets: Vector[List[ValidatorIndex, MAX_EARLY_DERIVED_SECRET_REVEALS * SLOTS_PER_EPOCH],
-                                    EARLY_DERIVED_SECRET_PENALTY_MAX_FUTURE_EPOCHS]
-    custody_chunk_challenge_records: List[CustodyChunkChallengeRecord, MAX_CUSTODY_CHUNK_CHALLENGE_RECORDS]
-    custody_chunk_challenge_index: uint64
-    
 
-class SignedVoluntaryExit(Container):
-    message: VoluntaryExit
-    signature: BLSSignature
-
-
-class SignedBeaconBlockHeader(Container):
-    message: BeaconBlockHeader
-    signature: BLSSignature
-
-
-class ProposerSlashing(Container):
-    signed_header_1: SignedBeaconBlockHeader
-    signed_header_2: SignedBeaconBlockHeader
 
 # Custody stuff
-    
+
 class CustodyChunkChallenge(Container):
     responder_index: ValidatorIndex
-    shard_transition: ShardTransition
+#    shard_transition: ShardTransition
     attestation: Attestation
     data_index: uint64
     chunk_index: uint64
@@ -429,6 +383,72 @@ class EarlyDerivedSecretReveal(Container):
     # Mask used to hide the actual reveal signature (prevent reveal from being stolen)
     mask: Bytes32
 
+
+class BeaconState(Container):
+    # Versioning
+    genesis_time: uint64
+    genesis_validators_root: Root
+    slot: Slot
+    fork: Fork
+    # History
+    latest_block_header: BeaconBlockHeader
+    block_roots: Vector[Root, SLOTS_PER_HISTORICAL_ROOT]
+    state_roots: Vector[Root, SLOTS_PER_HISTORICAL_ROOT]
+    historical_roots: List[Root, HISTORICAL_ROOTS_LIMIT]
+    # Eth1
+    eth1_data: Eth1Data
+    eth1_data_votes: List[Eth1Data, EPOCHS_PER_ETH1_VOTING_PERIOD * SLOTS_PER_EPOCH]
+    eth1_deposit_index: uint64
+    # Registry
+    validators: List[Validator, VALIDATOR_REGISTRY_LIMIT]
+    balances: List[Gwei, VALIDATOR_REGISTRY_LIMIT]
+    # Randomness
+    randao_mixes: Vector[Root, EPOCHS_PER_HISTORICAL_VECTOR]
+    # Slashings
+    slashings: Vector[Gwei, EPOCHS_PER_SLASHINGS_VECTOR]  # Per-epoch sums of slashed effective balances
+    # Attestations
+    previous_epoch_attestations: List[PendingAttestation, MAX_ATTESTATIONS * SLOTS_PER_EPOCH]
+    current_epoch_attestations: List[PendingAttestation, MAX_ATTESTATIONS * SLOTS_PER_EPOCH]
+    # Finality
+    justification_bits: Bitvector[JUSTIFICATION_BITS_LENGTH]  # Bit set for every recent justified epoch
+    previous_justified_checkpoint: Checkpoint  # Previous epoch snapshot
+    current_justified_checkpoint: Checkpoint
+    finalized_checkpoint: Checkpoint
+    # Phase 1
+    current_epoch_start_shard: Shard
+#    shard_states: List[ShardState, MAX_SHARDS]
+    online_countdown: List[OnlineEpochs, VALIDATOR_REGISTRY_LIMIT]  # not a raw byte array, considered its large size.
+#    current_light_committee: CompactCommittee
+#    next_light_committee: CompactCommittee
+    # Custody game
+    # Future derived secrets already exposed; contains the indices of the exposed validator
+    # at RANDAO reveal period % EARLY_DERIVED_SECRET_PENALTY_MAX_FUTURE_EPOCHS
+    exposed_derived_secrets: Vector[List[ValidatorIndex, MAX_EARLY_DERIVED_SECRET_REVEALS * SLOTS_PER_EPOCH],
+                                    EARLY_DERIVED_SECRET_PENALTY_MAX_FUTURE_EPOCHS]
+    custody_chunk_challenge_records: List[CustodyChunkChallengeRecord, MAX_CUSTODY_CHUNK_CHALLENGE_RECORDS]
+    custody_chunk_challenge_index: uint64
+
+
+class VoluntaryExit(Container):
+    epoch: Epoch  # Earliest epoch when voluntary exit can be processed
+    validator_index: ValidatorIndex
+
+
+class SignedVoluntaryExit(Container):
+    message: VoluntaryExit
+    signature: BLSSignature
+
+
+class SignedBeaconBlockHeader(Container):
+    message: BeaconBlockHeader
+    signature: BLSSignature
+
+
+class ProposerSlashing(Container):
+    signed_header_1: SignedBeaconBlockHeader
+    signed_header_2: SignedBeaconBlockHeader
+
+
 # Beacon Block stuff
 
 class BeaconBlockBody(Container):
@@ -468,6 +488,8 @@ class SignedBeaconBlock(Container):
     message: BeaconBlock
     signature: BLSSignature
 
+
+
 class Eth1Block(Container):
     timestamp: uint64
     deposit_root: Root
@@ -483,6 +505,98 @@ class AggregateAndProof(Container):
 
 class SignedAggregateAndProof(Container):
     message: AggregateAndProof
+    signature: BLSSignature
+
+
+# # Sharding stuff
+
+# class ShardBlock(Container):
+#     shard_parent_root: Root
+#     beacon_parent_root: Root
+#     slot: Slot
+#     shard: Shard
+#     proposer_index: ValidatorIndex
+#     body: ByteList[MAX_SHARD_BLOCK_SIZE]
+
+
+# class SignedShardBlock(Container):
+#     message: ShardBlock
+#     signature: BLSSignature
+
+
+# class ShardBlockHeader(Container):
+#     shard_parent_root: Root
+#     beacon_parent_root: Root
+#     slot: Slot
+#     shard: Shard
+#     proposer_index: ValidatorIndex
+#     body_root: Root
+
+
+# class ShardState(Container):
+#     slot: Slot
+#     gasprice: Gwei
+#     latest_block_root: Root
+
+
+# class ShardTransition(Container):
+#     # Starting from slot
+#     start_slot: Slot
+#     # Shard block lengths
+#     shard_block_lengths: List[uint64, MAX_SHARD_BLOCKS_PER_ATTESTATION]
+#     # Shard data roots
+#     # The root is of ByteList[MAX_SHARD_BLOCK_SIZE]
+#     shard_data_roots: List[Bytes32, MAX_SHARD_BLOCKS_PER_ATTESTATION]
+#     # Intermediate shard states
+#     shard_states: List[ShardState, MAX_SHARD_BLOCKS_PER_ATTESTATION]
+#     # Proposer signature aggregate
+#     proposer_signature_aggregate: BLSSignature
+
+
+class CompactCommittee(Container):
+    pubkeys: List[BLSPubkey, MAX_VALIDATORS_PER_COMMITTEE]
+    compact_validators: List[uint64, MAX_VALIDATORS_PER_COMMITTEE]
+
+
+class FullAttestationData(Container):
+    slot: Slot
+    index: CommitteeIndex
+    # LMD GHOST vote
+    beacon_block_root: Root
+    # FFG vote
+    source: Checkpoint
+    target: Checkpoint
+    # Current-slot shard block root
+    shard_head_root: Root
+    # Full shard transition
+    shard_transition: ShardTransition
+
+
+class FullAttestation(Container):
+    aggregation_bits: Bitlist[MAX_VALIDATORS_PER_COMMITTEE]
+    data: FullAttestationData
+    signature: BLSSignature
+
+
+class LightClientVoteData(Container):
+    slot: Slot
+    beacon_block_root: Root
+
+
+class LightClientVote(Container):
+    data: LightClientVoteData
+    aggregation_bits: Bitvector[LIGHT_CLIENT_COMMITTEE_SIZE]
+    signature: BLSSignature
+
+
+class LightAggregateAndProof(Container):
+    aggregator_index: ValidatorIndex
+    aggregate: LightClientVote
+    selection_proof: BLSSignature
+
+
+class SignedLightAggregateAndProof(Container):
+    message: LightAggregateAndProof
     signature: BLSSignature
 
 
@@ -513,11 +627,11 @@ def int_to_bytes(n: uint64, length: uint64) -> bytes:
     return n.to_bytes(length, ENDIANNESS)
 
 
-def bytes_to_int(data: bytes) -> uint64:
+def bytes_to_uint64(data: bytes) -> uint64:
     """
     Return the integer deserialization of ``data`` interpreted as ``ENDIANNESS``-endian.
     """
-    return int.from_bytes(data, ENDIANNESS)
+    return uint64(int.from_bytes(data, ENDIANNESS))
 
 
 def is_active_validator(validator: Validator, epoch: Epoch) -> bool:
@@ -605,11 +719,15 @@ def compute_shuffled_index(index: uint64, index_count: uint64, seed: Bytes32) ->
     # Swap or not (https://link.springer.com/content/pdf/10.1007%2F978-3-642-32009-5_1.pdf)
     # See the 'generalized domain' algorithm on page 3
     for current_round in range(SHUFFLE_ROUND_COUNT):
-        pivot = bytes_to_int(hash(seed + int_to_bytes(current_round, length=1))[0:8]) % index_count
+        pivot = bytes_to_uint64(hash(seed + uint_to_bytes(uint8(current_round)))[0:8]) % index_count
         flip = (pivot + index_count - index) % index_count
         position = max(index, flip)
-        source = hash(seed + int_to_bytes(current_round, length=1) + int_to_bytes(position // 256, length=4))
-        byte = source[(position % 256) // 8]
+        source = hash(
+            seed
+            + uint_to_bytes(uint8(current_round))
+            + uint_to_bytes(uint32(position // 256))
+        )
+        byte = uint8(source[(position % 256) // 8])
         bit = (byte >> (position % 8)) % 2
         index = flip if bit else index
 
@@ -622,10 +740,11 @@ def compute_proposer_index(state: BeaconState, indices: Sequence[ValidatorIndex]
     """
     assert len(indices) > 0
     MAX_RANDOM_BYTE = 2**8 - 1
-    i = 0
+    i = uint64(0)
+    total = uint64(len(indices))
     while True:
-        candidate_index = indices[compute_shuffled_index(i % len(indices), len(indices), seed)]
-        random_byte = hash(seed + int_to_bytes(i // 32, length=8))[i % 32]
+        candidate_index = indices[compute_shuffled_index(i % total, total, seed)]
+        random_byte = hash(seed + uint_to_bytes(uint64(i // 32)))[i % 32]
         effective_balance = state.validators[candidate_index].effective_balance
         if effective_balance * MAX_RANDOM_BYTE >= MAX_EFFECTIVE_BALANCE * random_byte:
             return candidate_index
@@ -640,8 +759,8 @@ def compute_committee(indices: Sequence[ValidatorIndex],
     Return the committee corresponding to ``indices``, ``seed``, ``index``, and committee ``count``.
     """
     start = (len(indices) * index) // count
-    end = (len(indices) * (index + 1)) // count
-    return [indices[compute_shuffled_index(i, len(indices), seed)] for i in range(start, end)]
+    end = (len(indices) * uint64(index + 1)) // count
+    return [indices[compute_shuffled_index(uint64(i), uint64(len(indices)), seed)] for i in range(start, end)]
 
 
 def compute_epoch_at_slot(slot: Slot) -> Epoch:

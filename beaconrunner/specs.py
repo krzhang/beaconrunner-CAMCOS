@@ -501,8 +501,6 @@ class SignedBeaconBlock(Container):
     message: BeaconBlock
     signature: BLSSignature
 
-
-
 class Eth1Block(Container):
     timestamp: uint64
     deposit_root: Root

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from .specs import (
     VALIDATOR_REGISTRY_LIMIT,
     ValidatorIndex, Slot,
-    BeaconState, Attestation, SignedBeaconBlock,
+    BeaconState, Attestation, SignedBeaconBlock, CustodyChunkResponse, 
     Store, get_forkchoice_store, on_block, on_attestation
 )
 from .validatorlib import BRValidator
@@ -94,7 +94,8 @@ def disseminate_block(network: Network,
 
     ask_to_check_backlog(network, broadcast_validators)
 
-def disseminate_attestations(network: Network, items: Sequence[Tuple[ValidatorIndex, Attestation]]) -> None:
+def disseminate_attestations(network: Network,
+                             items: Sequence[Tuple[ValidatorIndex, Attestation]]) -> None:
     # We get a set of attestations and disseminate them over the network
 
     # Finding out who receives a new attestation
@@ -117,6 +118,9 @@ def disseminate_attestations(network: Network, items: Sequence[Tuple[ValidatorIn
 
     ask_to_check_backlog(network, broadcast_validators)
 
+def disseminate_chunk_responses(network: Network, items: Sequence[Tuple[ValidatorIndex, CustodyChunkResponse]]) -> None:
+    pass 
+    
 def update_network(network: Network) -> None:
     # The "heartbeat" of the network. When called, items propagate one step further on the network.
 

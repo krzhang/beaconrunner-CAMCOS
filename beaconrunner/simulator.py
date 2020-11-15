@@ -16,8 +16,10 @@ from .specs import (
 )
 from .network import (
     Network,
-    update_network, disseminate_attestations,
-    disseminate_block, knowledge_set,
+    update_network,
+    disseminate_attestations,
+    disseminate_block,
+    knowledge_set,
 )
 
 from .utils.cadCADsupSUP import (
@@ -104,6 +106,14 @@ def update_blocks(_params, step, sL, s, _input):
 
     return ('network', network)
 
+def update_chunk_responses(_params, step, sL, s, _input):
+    # Get the blocks proposed and disseminate them on-the-wire
+
+    network = s["network"]
+    disseminate_chunk_responses(network, _input["chunk_responses"])
+
+    return ('network', network)
+  
 ## Policies
 
 ### Attestations
@@ -140,22 +150,22 @@ def propose_policy(_params, step, sL, s):
 
 ### Chunk Challenge Response
 
-# def chunk_response_policy(_params, step, sL, s):
+def chunk_response_policy(_params, step, sL, s):
 
-#     # Pinging validators to check if anyone wants to propose a block
+    # Pinging validators to check if anyone wants to response to a chunk challenge.
 
-#     network = s['network']
-#     responses = []
+    network = s['network']
+    responses = []
 
-#     for validator_index, validator in enumerate(network.validators):
-#         known_items = knowledge_set(network, validator_index)
-#         chunk_response = validator.chunk_response(known_items)
-#         if chunk_response is not None:
-#             responses.append(chunk_response)
+    for validator_index, validator in enumerate(network.validators):
+        known_items = knowledge_set(network, validator_index)
+        chunk_response = validator.chunk_response(known_items)
+        if chunk_response is not None:
+            responses.append(chunk_response)
 
-#     return ({ 'chunk_responses': responses })
+    return ({ 'chunk_responses': responses })
 
-  
+ 
 ### Simulator shell
 
 class SimulationParameters:
@@ -194,6 +204,14 @@ def simulate(network: Network, parameters: SimulationParameters, observers: Dict
                 'network': update_attestations # step 2
             }
         },
+        {
+            'policies': {
+                'action': chunk_response_policy # step 3
+            },
+            'variables': {
+                'network': update_chunk_responses # step 4
+            }
+        },      
         {
             'policies': {
                 'action': propose_policy # step 3

@@ -407,7 +407,7 @@ class BRValidator:
 
         slots_proposed = sorted([log.slot for log in self.history if log.move == "propose"], reverse = True)
         self.data.last_slot_proposed = None if len(slots_proposed) == 0 else slots_proposed[0]
-
+        
     def update_data(self) -> None:
         """
         The head may change if we recorded a new block/new attestation in the `store`.
@@ -516,7 +516,19 @@ class BRValidator:
             move = "attest"
         ))
         self.update_attest_move()
+        
+    def log_chunk_response(self, item: CustodyChunkResponse) -> None:
+        """
+        Recording 'attestation proposal' move by the validator in its history.
+        """
 
+        self.history.append(ValidatorMove(
+            time = self.data.time_ms,
+            slot = None,
+            move = "chunk_response"
+        ))
+        # for simplicity we assume it's not important to e.g. make update_chunk_response
+       
     def record_block(self, item: SignedBeaconBlock) -> bool:
         """
         When a validator receives a block from the network, they call `record_block` to see

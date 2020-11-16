@@ -1,4 +1,5 @@
 import time
+import random
 
 from typing import Set, Optional, Sequence, Tuple, Dict, Text
 from dataclasses import dataclass, field
@@ -7,9 +8,10 @@ from .specs import (
     Slot, Root, Epoch, CommitteeIndex, ValidatorIndex, Store,
     BeaconState, BeaconBlock, BeaconBlockBody, SignedBeaconBlock,
     Attestation, AttestationData, Checkpoint, BLSSignature,
+    CustodyChunkChallenge, CustodyChunkResponse, 
     MAX_VALIDATORS_PER_COMMITTEE, VALIDATOR_REGISTRY_LIMIT,
     SLOTS_PER_EPOCH, DOMAIN_RANDAO, DOMAIN_BEACON_PROPOSER,
-    DOMAIN_BEACON_ATTESTER,
+    DOMAIN_BEACON_ATTESTER, MAX_CUSTODY_CHUNK_CHALLENGES,
     get_forkchoice_store, get_current_slot, compute_epoch_at_slot,
     get_head, process_slots, on_tick, get_current_epoch,
     get_committee_assignment, compute_start_slot_at_epoch,
@@ -26,6 +28,11 @@ from eth2spec.test.helpers.keys import pubkeys, pubkey_to_privkey
 
 frequency = 1
 assert frequency in [1, 10, 100, 1000]
+
+def index_from_attestation(attestation):
+    """ Given an attestation, return the committee index and thus its author."""
+    bits = attestation.aggregation_bits
+    return bits.index(True)
 
 class ValidatorMove(object):
     """
@@ -780,8 +787,26 @@ def honest_propose(validator, known_items):
         proposer_index = validator.validator_index,
     )
 
+    chunk_challenges = []
+    for i in range(MAX_CUSTODY_CHUNK_CHALLENGES):
+        # TODO: be principled about repeats, not having attestations, etc.; right now
+        # I just exit if something bad happens
+        if not known_items['attestations']:
+            continue
+        network_attestation = random.choice(known_items['attestations'])
+        attestor_index = network_attestation.attestor
+        attestation = network_attestation.item
+        cha = CustodyChunkChallenge(
+            responder_index=attestor_index,
+            attestation=attestation,
+            # data_index and chunk_index have real values, but we can ignore for simulations
+        )
+        chunk_challenges.append(cha)
+        print(validator.validator_index, "challenging", attestor_index)
+
     beacon_block_body = BeaconBlockBody(
-        attestations=attestations
+        attestations=attestations,
+        chunk_challenges=chunk_challenges,
     )
     epoch_signature = get_epoch_signature(processed_state, beacon_block, validator.privkey)
     beacon_block_body.randao_reveal = epoch_signature

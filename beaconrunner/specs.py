@@ -485,8 +485,8 @@ class BeaconBlockBody(Container):
     # Shards
 #     shard_transitions: Vector[ShardTransition, MAX_SHARDS]
     # Light clients
-    light_client_bits: Bitvector[LIGHT_CLIENT_COMMITTEE_SIZE]
-    light_client_signature: BLSSignature
+#    light_client_bits: Bitvector[LIGHT_CLIENT_COMMITTEE_SIZE]
+#    light_client_signature: BLSSignature
 
 
 class BeaconBlock(Container):

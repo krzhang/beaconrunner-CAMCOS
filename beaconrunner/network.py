@@ -23,6 +23,7 @@ class NetworkSet(object):
 
 @dataclass
 class NetworkAttestation(object):
+    attestor: ValidatorIndex  # why not have them know this?
     item: Attestation
     info_sets: List[NetworkSetIndex, VALIDATOR_REGISTRY_LIMIT]
 
@@ -109,7 +110,9 @@ def disseminate_attestations(network: Network,
         network.validators[sender].log_attestation(attestation)
 
         # Adding the attestation to network items
-        networkItem = NetworkAttestation(item=attestation, info_sets=broadcast_list)
+        networkItem = NetworkAttestation(attestor=sender,
+                                         item=attestation,
+                                         info_sets=broadcast_list)
         network.attestations.append(networkItem)
 
         # Update list of validators who received a new item

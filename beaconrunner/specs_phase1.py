@@ -74,182 +74,27 @@ class Store(object):
     shard_stores: Dict[Shard, ShardStore] = field(default_factory=dict)
 
 
-def get_current_epoch(state: BeaconState) -> Epoch:
-    """
-    Return the current epoch.
-    """
-    return compute_epoch_at_slot(state.slot)
+# def get_current_epoch(state: BeaconState) -> Epoch:
+#     """
+#     Return the current epoch.
+#     """
+#     return compute_epoch_at_slot(state.slot)
 
 
-def get_previous_epoch(state: BeaconState) -> Epoch:
-    """`
-    Return the previous epoch (unless the current epoch is ``GENESIS_EPOCH``).
-    """
-    current_epoch = get_current_epoch(state)
-    return GENESIS_EPOCH if current_epoch == GENESIS_EPOCH else Epoch(current_epoch - 1)
 
 
-def get_block_root(state: BeaconState, epoch: Epoch) -> Root:
-    """
-    Return the block root at the start of a recent ``epoch``.
-    """
-    return get_block_root_at_slot(state, compute_start_slot_at_epoch(epoch))
+# def get_beacon_proposer_index(state: BeaconState) -> ValidatorIndex:
+#     """
+#     Return the beacon proposer index at the current slot.
+#     """
+#     epoch = get_current_epoch(state)
+#     seed = hash(get_seed(state, epoch, DOMAIN_BEACON_PROPOSER) + uint_to_bytes(state.slot))
+#     indices = get_active_validator_indices(state, epoch)
+#     return compute_proposer_index(state, indices, seed)
 
 
-def get_block_root_at_slot(state: BeaconState, slot: Slot) -> Root:
-    """
-    Return the block root at a recent ``slot``.
-    """
-    assert slot < state.slot <= slot + SLOTS_PER_HISTORICAL_ROOT
-    return state.block_roots[slot % SLOTS_PER_HISTORICAL_ROOT]
 
 
-def get_randao_mix(state: BeaconState, epoch: Epoch) -> Bytes32:
-    """
-    Return the randao mix at a recent ``epoch``.
-    """
-    return state.randao_mixes[epoch % EPOCHS_PER_HISTORICAL_VECTOR]
-
-
-def get_active_validator_indices(state: BeaconState, epoch: Epoch) -> Sequence[ValidatorIndex]:
-    """
-    Return the sequence of active validator indices at ``epoch``.
-    """
-    return [ValidatorIndex(i) for i, v in enumerate(state.validators) if is_active_validator(v, epoch)]
-
-
-def get_validator_churn_limit(state: BeaconState) -> uint64:
-    """
-    Return the validator churn limit for the current epoch.
-    """
-    active_validator_indices = get_active_validator_indices(state, get_current_epoch(state))
-    return max(MIN_PER_EPOCH_CHURN_LIMIT, uint64(len(active_validator_indices)) // CHURN_LIMIT_QUOTIENT)
-
-
-def get_seed(state: BeaconState, epoch: Epoch, domain_type: DomainType) -> Bytes32:
-    """
-    Return the seed at ``epoch``.
-    """
-    mix = get_randao_mix(state, Epoch(epoch + EPOCHS_PER_HISTORICAL_VECTOR - MIN_SEED_LOOKAHEAD - 1))  # Avoid underflow
-    return hash(domain_type + uint_to_bytes(epoch) + mix)
-
-
-def get_committee_count_per_slot(state: BeaconState, epoch: Epoch) -> uint64:
-    """
-    Return the number of committees in each slot for the given ``epoch``.
-    """
-    return max(uint64(1), min(
-        get_active_shard_count(state),
-        uint64(len(get_active_validator_indices(state, epoch))) // SLOTS_PER_EPOCH // TARGET_COMMITTEE_SIZE,
-    ))
-
-
-def get_beacon_committee(state: BeaconState, slot: Slot, index: CommitteeIndex) -> Sequence[ValidatorIndex]:
-    """
-    Return the beacon committee at ``slot`` for ``index``.
-    """
-    epoch = compute_epoch_at_slot(slot)
-    committees_per_slot = get_committee_count_per_slot(state, epoch)
-    return compute_committee(
-        indices=get_active_validator_indices(state, epoch),
-        seed=get_seed(state, epoch, DOMAIN_BEACON_ATTESTER),
-        index=(slot % SLOTS_PER_EPOCH) * committees_per_slot + index,
-        count=committees_per_slot * SLOTS_PER_EPOCH,
-    )
-
-
-def get_beacon_proposer_index(state: BeaconState) -> ValidatorIndex:
-    """
-    Return the beacon proposer index at the current slot.
-    """
-    epoch = get_current_epoch(state)
-    seed = hash(get_seed(state, epoch, DOMAIN_BEACON_PROPOSER) + uint_to_bytes(state.slot))
-    indices = get_active_validator_indices(state, epoch)
-    return compute_proposer_index(state, indices, seed)
-
-
-def get_total_balance(state: BeaconState, indices: Set[ValidatorIndex]) -> Gwei:
-    """
-    Return the combined effective balance of the ``indices``.
-    ``EFFECTIVE_BALANCE_INCREMENT`` Gwei minimum to avoid divisions by zero.
-    Math safe up to ~10B ETH, afterwhich this overflows uint64.
-    """
-    return Gwei(max(EFFECTIVE_BALANCE_INCREMENT, sum([state.validators[index].effective_balance for index in indices])))
-
-
-def get_total_active_balance(state: BeaconState) -> Gwei:
-    """
-    Return the combined effective balance of the active validators.
-    Note: ``get_total_balance`` returns ``EFFECTIVE_BALANCE_INCREMENT`` Gwei minimum to avoid divisions by zero.
-    """
-    return get_total_balance(state, set(get_active_validator_indices(state, get_current_epoch(state))))
-
-
-def get_domain(state: BeaconState, domain_type: DomainType, epoch: Epoch=None) -> Domain:
-    """
-    Return the signature domain (fork version concatenated with domain type) of a message.
-    """
-    epoch = get_current_epoch(state) if epoch is None else epoch
-    fork_version = state.fork.previous_version if epoch < state.fork.epoch else state.fork.current_version
-    return compute_domain(domain_type, fork_version, state.genesis_validators_root)
-
-
-def get_indexed_attestation(state: BeaconState, attestation: Attestation) -> IndexedAttestation:
-    """
-    Return the indexed attestation corresponding to ``attestation``.
-    """
-    attesting_indices = get_attesting_indices(state, attestation.data, attestation.aggregation_bits)
-
-    return IndexedAttestation(
-        attesting_indices=sorted(attesting_indices),
-        data=attestation.data,
-        signature=attestation.signature,
-    )
-
-
-def get_attesting_indices(state: BeaconState,
-                          data: AttestationData,
-                          bits: Bitlist[MAX_VALIDATORS_PER_COMMITTEE]) -> Set[ValidatorIndex]:
-    """
-    Return the set of attesting indices corresponding to ``data`` and ``bits``.
-    """
-    committee = get_beacon_committee(state, data.slot, data.index)
-    return set(index for i, index in enumerate(committee) if bits[i])
-
-
-def increase_balance(state: BeaconState, index: ValidatorIndex, delta: Gwei) -> None:
-    """
-    Increase the validator balance at index ``index`` by ``delta``.
-    """
-    state.balances[index] += delta
-
-
-def decrease_balance(state: BeaconState, index: ValidatorIndex, delta: Gwei) -> None:
-    """
-    Decrease the validator balance at index ``index`` by ``delta``, with underflow protection.
-    """
-    state.balances[index] = 0 if delta > state.balances[index] else state.balances[index] - delta
-
-
-def initiate_validator_exit(state: BeaconState, index: ValidatorIndex) -> None:
-    """
-    Initiate the exit of the validator with index ``index``.
-    """
-    # Return if validator already initiated exit
-    validator = state.validators[index]
-    if validator.exit_epoch != FAR_FUTURE_EPOCH:
-        return
-
-    # Compute exit queue epoch
-    exit_epochs = [v.exit_epoch for v in state.validators if v.exit_epoch != FAR_FUTURE_EPOCH]
-    exit_queue_epoch = max(exit_epochs + [compute_activation_exit_epoch(get_current_epoch(state))])
-    exit_queue_churn = len([v for v in state.validators if v.exit_epoch == exit_queue_epoch])
-    if exit_queue_churn >= get_validator_churn_limit(state):
-        exit_queue_epoch += Epoch(1)
-
-    # Set validator exit epoch and withdrawable epoch
-    validator.exit_epoch = exit_queue_epoch
-    validator.withdrawable_epoch = Epoch(validator.exit_epoch + MIN_VALIDATOR_WITHDRAWABILITY_DELAY)
 
 
 def slash_validator(state: BeaconState,
@@ -1106,154 +951,41 @@ def check_if_validator_active(state: BeaconState, validator_index: ValidatorInde
     return is_active_validator(validator, get_current_epoch(state))
 
 
-def get_committee_assignment(state: BeaconState,
-                             epoch: Epoch,
-                             validator_index: ValidatorIndex
-                             ) -> Optional[Tuple[Sequence[ValidatorIndex], CommitteeIndex, Slot]]:
-    """
-    Return the committee assignment in the ``epoch`` for ``validator_index``.
-    ``assignment`` returned is a tuple of the following form:
-        * ``assignment[0]`` is the list of validators in the committee
-        * ``assignment[1]`` is the index to which the committee is assigned
-        * ``assignment[2]`` is the slot at which the committee is assigned
-    Return None if no assignment.
-    """
-    next_epoch = Epoch(get_current_epoch(state) + 1)
-    assert epoch <= next_epoch
+# def get_committee_assignment(state: BeaconState,
+#                              epoch: Epoch,
+#                              validator_index: ValidatorIndex
+#                              ) -> Optional[Tuple[Sequence[ValidatorIndex], CommitteeIndex, Slot]]:
+#     """
+#     Return the committee assignment in the ``epoch`` for ``validator_index``.
+#     ``assignment`` returned is a tuple of the following form:
+#         * ``assignment[0]`` is the list of validators in the committee
+#         * ``assignment[1]`` is the index to which the committee is assigned
+#         * ``assignment[2]`` is the slot at which the committee is assigned
+#     Return None if no assignment.
+#     """
+#     next_epoch = Epoch(get_current_epoch(state) + 1)
+#     assert epoch <= next_epoch
 
-    start_slot = compute_start_slot_at_epoch(epoch)
-    committee_count_per_slot = get_committee_count_per_slot(state, epoch)
-    for slot in range(start_slot, start_slot + SLOTS_PER_EPOCH):
-        for index in range(committee_count_per_slot):
-            committee = get_beacon_committee(state, Slot(slot), CommitteeIndex(index))
-            if validator_index in committee:
-                return committee, CommitteeIndex(index), Slot(slot)
-    return None
-
-
-def is_proposer(state: BeaconState, validator_index: ValidatorIndex) -> bool:
-    return get_beacon_proposer_index(state) == validator_index
-
-
-def get_epoch_signature(state: BeaconState, block: BeaconBlock, privkey: int) -> BLSSignature:
-    domain = get_domain(state, DOMAIN_RANDAO, compute_epoch_at_slot(block.slot))
-    signing_root = compute_signing_root(compute_epoch_at_slot(block.slot), domain)
-    return bls.Sign(privkey, signing_root)
-
-
-def compute_time_at_slot(state: BeaconState, slot: Slot) -> uint64:
-    return uint64(state.genesis_time + slot * SECONDS_PER_SLOT)
+#     start_slot = compute_start_slot_at_epoch(epoch)
+#     committee_count_per_slot = get_committee_count_per_slot(state, epoch)
+#     for slot in range(start_slot, start_slot + SLOTS_PER_EPOCH):
+#         for index in range(committee_count_per_slot):
+#             committee = get_beacon_committee(state, Slot(slot), CommitteeIndex(index))
+#             if validator_index in committee:
+#                 return committee, CommitteeIndex(index), Slot(slot)
+#     return None
+#
+# ...
+#
+# def get_aggregate_and_proof_signature(state: BeaconState,
+#                                       aggregate_and_proof: AggregateAndProof,
+#                                       privkey: int) -> BLSSignature:
+#     aggregate = aggregate_and_proof.aggregate
+#     domain = get_domain(state, DOMAIN_AGGREGATE_AND_PROOF, compute_epoch_at_slot(aggregate.data.slot))
+#     signing_root = compute_signing_root(aggregate_and_proof, domain)
+#     return bls.Sign(privkey, signing_root)
 
 
-def voting_period_start_time(state: BeaconState) -> uint64:
-    eth1_voting_period_start_slot = Slot(state.slot - state.slot % (EPOCHS_PER_ETH1_VOTING_PERIOD * SLOTS_PER_EPOCH))
-    return compute_time_at_slot(state, eth1_voting_period_start_slot)
-
-
-def is_candidate_block(block: Eth1Block, period_start: uint64) -> bool:
-    return (
-        block.timestamp + SECONDS_PER_ETH1_BLOCK * ETH1_FOLLOW_DISTANCE <= period_start
-        and block.timestamp + SECONDS_PER_ETH1_BLOCK * ETH1_FOLLOW_DISTANCE * 2 >= period_start
-    )
-
-
-def get_eth1_vote(state: BeaconState, eth1_chain: Sequence[Eth1Block]) -> Eth1Data:
-    period_start = voting_period_start_time(state)
-    # `eth1_chain` abstractly represents all blocks in the eth1 chain sorted by ascending block height
-    votes_to_consider = [
-        get_eth1_data(block) for block in eth1_chain
-        if (
-            is_candidate_block(block, period_start)
-            # Ensure cannot move back to earlier deposit contract states
-            and get_eth1_data(block).deposit_count >= state.eth1_data.deposit_count
-        )
-    ]
-
-    # Valid votes already cast during this period
-    valid_votes = [vote for vote in state.eth1_data_votes if vote in votes_to_consider]
-
-    # Default vote on latest eth1 block data in the period range unless eth1 chain is not live
-    default_vote = votes_to_consider[len(votes_to_consider) - 1] if any(votes_to_consider) else state.eth1_data
-
-    return max(
-        valid_votes,
-        key=lambda v: (valid_votes.count(v), -valid_votes.index(v)),  # Tiebreak by smallest distance
-        default=default_vote
-    )
-
-
-def compute_new_state_root(state: BeaconState, block: BeaconBlock) -> Root:
-    temp_state: BeaconState = state.copy()
-    signed_block = SignedBeaconBlock(message=block)
-    temp_state = state_transition(temp_state, signed_block, validate_result=False)
-    return hash_tree_root(temp_state)
-
-
-def get_block_signature(state: BeaconState, block: BeaconBlock, privkey: int) -> BLSSignature:
-    domain = get_domain(state, DOMAIN_BEACON_PROPOSER, compute_epoch_at_slot(block.slot))
-    signing_root = compute_signing_root(block, domain)
-    return bls.Sign(privkey, signing_root)
-
-
-def get_attestation_signature(state: BeaconState, attestation_data: AttestationData, privkey: int) -> BLSSignature:
-    domain = get_domain(state, DOMAIN_BEACON_ATTESTER, attestation_data.target.epoch)
-    signing_root = compute_signing_root(attestation_data, domain)
-    return bls.Sign(privkey, signing_root)
-
-
-def compute_subnet_for_attestation(committees_per_slot: uint64, slot: Slot, committee_index: CommitteeIndex) -> uint64:
-    """
-    Compute the correct subnet for an attestation for Phase 0.
-    Note, this mimics expected Phase 1 behavior where attestations will be mapped to their shard subnet.
-    """
-    slots_since_epoch_start = uint64(slot % SLOTS_PER_EPOCH)
-    committees_since_epoch_start = committees_per_slot * slots_since_epoch_start
-
-    return uint64((committees_since_epoch_start + committee_index) % ATTESTATION_SUBNET_COUNT)
-
-
-def get_slot_signature(state: BeaconState, slot: Slot, privkey: int) -> BLSSignature:
-    domain = get_domain(state, DOMAIN_SELECTION_PROOF, compute_epoch_at_slot(slot))
-    signing_root = compute_signing_root(slot, domain)
-    return bls.Sign(privkey, signing_root)
-
-
-def is_aggregator(state: BeaconState, slot: Slot, index: CommitteeIndex, slot_signature: BLSSignature) -> bool:
-    committee = get_beacon_committee(state, slot, index)
-    modulo = max(1, len(committee) // TARGET_AGGREGATORS_PER_COMMITTEE)
-    return bytes_to_uint64(hash(slot_signature)[0:8]) % modulo == 0
-
-
-def get_aggregate_signature(attestations: Sequence[Attestation]) -> BLSSignature:
-    signatures = [attestation.signature for attestation in attestations]
-    return bls.Aggregate(signatures)
-
-
-def get_aggregate_and_proof(state: BeaconState,
-                            aggregator_index: ValidatorIndex,
-                            aggregate: Attestation,
-                            privkey: int) -> AggregateAndProof:
-    return AggregateAndProof(
-        aggregator_index=aggregator_index,
-        aggregate=aggregate,
-        selection_proof=get_slot_signature(state, aggregate.data.slot, privkey),
-    )
-
-
-def get_aggregate_and_proof_signature(state: BeaconState,
-                                      aggregate_and_proof: AggregateAndProof,
-                                      privkey: int) -> BLSSignature:
-    aggregate = aggregate_and_proof.aggregate
-    domain = get_domain(state, DOMAIN_AGGREGATE_AND_PROOF, compute_epoch_at_slot(aggregate.data.slot))
-    signing_root = compute_signing_root(aggregate_and_proof, domain)
-    return bls.Sign(privkey, signing_root)
-
-
-def compute_previous_slot(slot: Slot) -> Slot:
-    if slot > 0:
-        return Slot(slot - 1)
-    else:
-        return Slot(0)
 
 
 def pack_compact_validator(index: ValidatorIndex, slashed: bool, balance_in_increments: uint64) -> uint64:
@@ -1322,12 +1054,12 @@ def compute_committee_source_epoch(epoch: Epoch, period: uint64) -> Epoch:
     return source_epoch
 
 
-def get_active_shard_count(state: BeaconState) -> uint64:
-    """
-    Return the number of active shards.
-    Note that this puts an upper bound on the number of committees per slot.
-    """
-    return INITIAL_ACTIVE_SHARDS
+# def get_active_shard_count(state: BeaconState) -> uint64:
+#     """
+#     Return the number of active shards.
+#     Note that this puts an upper bound on the number of committees per slot.
+#     """
+#     return INITIAL_ACTIVE_SHARDS
 
 
 def get_online_validator_indices(state: BeaconState) -> Set[ValidatorIndex]:
@@ -2484,78 +2216,4 @@ def process_custody_final_updates(state: BeaconState) -> None:
                                                          + MIN_VALIDATOR_WITHDRAWABILITY_DELAY)
 
 
-def get_eth1_data(block: Eth1Block) -> Eth1Data:
-    """
-    A stub function return mocking Eth1Data.
-    """
-    return Eth1Data(
-        deposit_root=block.deposit_root,
-        deposit_count=block.deposit_count,
-        block_hash=hash_tree_root(block))
 
-
-def cache_this(key_fn, value_fn, lru_size):  # type: ignore
-    cache_dict = LRU(size=lru_size)
-
-    def wrapper(*args, **kw):  # type: ignore
-        key = key_fn(*args, **kw)
-        nonlocal cache_dict
-        if key not in cache_dict:
-            cache_dict[key] = value_fn(*args, **kw)
-        return cache_dict[key]
-    return wrapper
-
-
-_compute_shuffled_index = compute_shuffled_index
-compute_shuffled_index = cache_this(
-    lambda index, index_count, seed: (index, index_count, seed),
-    _compute_shuffled_index, lru_size=SLOTS_PER_EPOCH * 3)
-
-_get_total_active_balance = get_total_active_balance
-get_total_active_balance = cache_this(
-    lambda state: (state.validators.hash_tree_root(), compute_epoch_at_slot(state.slot)),
-    _get_total_active_balance, lru_size=10)
-
-_get_base_reward = get_base_reward
-get_base_reward = cache_this(
-    lambda state, index: (state.validators.hash_tree_root(), state.slot, index),
-    _get_base_reward, lru_size=2048)
-
-_get_committee_count_per_slot = get_committee_count_per_slot
-get_committee_count_per_slot = cache_this(
-    lambda state, epoch: (state.validators.hash_tree_root(), epoch),
-    _get_committee_count_per_slot, lru_size=SLOTS_PER_EPOCH * 3)
-
-_get_active_validator_indices = get_active_validator_indices
-get_active_validator_indices = cache_this(
-    lambda state, epoch: (state.validators.hash_tree_root(), epoch),
-    _get_active_validator_indices, lru_size=3)
-
-_get_beacon_committee = get_beacon_committee
-get_beacon_committee = cache_this(
-    lambda state, slot, index: (state.validators.hash_tree_root(), state.randao_mixes.hash_tree_root(), slot, index),
-    _get_beacon_committee, lru_size=SLOTS_PER_EPOCH * MAX_COMMITTEES_PER_SLOT * 3)
-
-_get_matching_target_attestations = get_matching_target_attestations
-get_matching_target_attestations = cache_this(
-    lambda state, epoch: (state.hash_tree_root(), epoch),
-    _get_matching_target_attestations, lru_size=10)
-
-_get_matching_head_attestations = get_matching_head_attestations
-get_matching_head_attestations = cache_this(
-    lambda state, epoch: (state.hash_tree_root(), epoch),
-    _get_matching_head_attestations, lru_size=10)
-
-_get_attesting_indices = get_attesting_indices
-get_attesting_indices = cache_this(
-    lambda state, data, bits: (
-        state.randao_mixes.hash_tree_root(),
-        state.validators.hash_tree_root(), data.hash_tree_root(), bits.hash_tree_root()
-    ),
-    _get_attesting_indices, lru_size=SLOTS_PER_EPOCH * MAX_COMMITTEES_PER_SLOT * 3)
-
-
-_get_start_shard = get_start_shard
-get_start_shard = cache_this(
-    lambda state, slot: (state.validators.hash_tree_root(), slot),
-    _get_start_shard, lru_size=SLOTS_PER_EPOCH * 3)

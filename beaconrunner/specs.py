@@ -17,6 +17,10 @@ from eth2spec.utils.ssz.ssz_typing import (
     ByteList, ByteVector, Bytes1, Bytes4, Bytes32, Bytes48, Bytes96, Bitlist, Bitvector,
 )
 
+# ssz code: [eth2.0-specs/ssz_impl.py at dev · ethereum/eth2.0-specs](https://github.com/ethereum/eth2.0-specs/blob/dev/tests/core/pyspec/eth2spec/utils/ssz/ssz_impl.py)
+
+# remerkleable code: [remerkleable/complex.py at master · protolambda/remerkleable](https://github.com/protolambda/remerkleable/blob/master/remerkleable/complex.py)
+
 def serialize(obj: View) -> bytes:
     return obj.encode_bytes()
 
@@ -348,6 +352,7 @@ class CustodyChunkChallenge(Container):
 
 
 class CustodyChunkChallengeRecord(Container):
+    """ used in network state """
     challenge_index: uint64
     challenger_index: ValidatorIndex
     responder_index: ValidatorIndex

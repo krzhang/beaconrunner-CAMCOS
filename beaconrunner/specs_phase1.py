@@ -402,79 +402,21 @@ def get_attestation_deltas(state: BeaconState) -> Tuple[Sequence[Gwei], Sequence
 
     return rewards, penalties
 
+# process... code
 
-def process_rewards_and_penalties(state: BeaconState) -> None:
-    # No rewards are applied at the end of `GENESIS_EPOCH` because rewards are for work done in the previous epoch
-    if get_current_epoch(state) == GENESIS_EPOCH:
-        return
+# starts with: 
+# def process_rewards_and_penalties(state: BeaconState) -> None:
+#     # No rewards are applied at the end of `GENESIS_EPOCH` because rewards are for work done in the previous epoch
+#     if get_current_epoch(state) == GENESIS_EPOCH:
+#         return
 
-    rewards, penalties = get_attestation_deltas(state)
-    for index in range(len(state.validators)):
-        increase_balance(state, ValidatorIndex(index), rewards[index])
-        decrease_balance(state, ValidatorIndex(index), penalties[index])
-
-
-def process_registry_updates(state: BeaconState) -> None:
-    # Process activation eligibility and ejections
-    for index, validator in enumerate(state.validators):
-        if is_eligible_for_activation_queue(validator):
-            validator.activation_eligibility_epoch = get_current_epoch(state) + 1
-
-        if is_active_validator(validator, get_current_epoch(state)) and validator.effective_balance <= EJECTION_BALANCE:
-            initiate_validator_exit(state, ValidatorIndex(index))
-
-    # Queue validators eligible for activation and not yet dequeued for activation
-    activation_queue = sorted([
-        index for index, validator in enumerate(state.validators)
-        if is_eligible_for_activation(state, validator)
-        # Order by the sequence of activation_eligibility_epoch setting and then index
-    ], key=lambda index: (state.validators[index].activation_eligibility_epoch, index))
-    # Dequeued validators for activation up to churn limit
-    for index in activation_queue[:get_validator_churn_limit(state)]:
-        validator = state.validators[index]
-        validator.activation_epoch = compute_activation_exit_epoch(get_current_epoch(state))
+#     rewards, penalties = get_attestation_deltas(state)
+#     for index in range(len(state.validators)):
+#         increase_balance(state, ValidatorIndex(index), rewards[index])
+#         decrease_balance(state, ValidatorIndex(index), penalties[index])
 
 
-def process_slashings(state: BeaconState) -> None:
-    epoch = get_current_epoch(state)
-    total_balance = get_total_active_balance(state)
-    adjusted_total_slashing_balance = min(sum(state.slashings) * PROPORTIONAL_SLASHING_MULTIPLIER, total_balance)
-    for index, validator in enumerate(state.validators):
-        if validator.slashed and epoch + EPOCHS_PER_SLASHINGS_VECTOR // 2 == validator.withdrawable_epoch:
-            increment = EFFECTIVE_BALANCE_INCREMENT  # Factored out from penalty numerator to avoid uint64 overflow
-            penalty_numerator = validator.effective_balance // increment * adjusted_total_slashing_balance
-            penalty = penalty_numerator // total_balance * increment
-            decrease_balance(state, ValidatorIndex(index), penalty)
 
-
-def process_final_updates(state: BeaconState) -> None:
-    current_epoch = get_current_epoch(state)
-    next_epoch = Epoch(current_epoch + 1)
-    # Reset eth1 data votes
-    if next_epoch % EPOCHS_PER_ETH1_VOTING_PERIOD == 0:
-        state.eth1_data_votes = []
-    # Update effective balances with hysteresis
-    for index, validator in enumerate(state.validators):
-        balance = state.balances[index]
-        HYSTERESIS_INCREMENT = uint64(EFFECTIVE_BALANCE_INCREMENT // HYSTERESIS_QUOTIENT)
-        DOWNWARD_THRESHOLD = HYSTERESIS_INCREMENT * HYSTERESIS_DOWNWARD_MULTIPLIER
-        UPWARD_THRESHOLD = HYSTERESIS_INCREMENT * HYSTERESIS_UPWARD_MULTIPLIER
-        if (
-            balance + DOWNWARD_THRESHOLD < validator.effective_balance
-            or validator.effective_balance + UPWARD_THRESHOLD < balance
-        ):
-            validator.effective_balance = min(balance - balance % EFFECTIVE_BALANCE_INCREMENT, MAX_EFFECTIVE_BALANCE)
-    # Reset slashings
-    state.slashings[next_epoch % EPOCHS_PER_SLASHINGS_VECTOR] = Gwei(0)
-    # Set randao mix
-    state.randao_mixes[next_epoch % EPOCHS_PER_HISTORICAL_VECTOR] = get_randao_mix(state, current_epoch)
-    # Set historical root accumulator
-    if next_epoch % (SLOTS_PER_HISTORICAL_ROOT // SLOTS_PER_EPOCH) == 0:
-        historical_batch = HistoricalBatch(block_roots=state.block_roots, state_roots=state.state_roots)
-        state.historical_roots.append(hash_tree_root(historical_batch))
-    # Rotate current/previous epoch attestations
-    state.previous_epoch_attestations = state.current_epoch_attestations
-    state.current_epoch_attestations = []
 
 
 def process_block(state: BeaconState, block: BeaconBlock) -> None:
@@ -1861,13 +1803,13 @@ def on_shard_block(store: Store, signed_shard_block: SignedShardBlock) -> None:
     shard_store.block_states[hash_tree_root(shard_block)] = shard_state
 
 
-def replace_empty_or_append(l: List, new_element: Any) -> int:
-    for i in range(len(l)):
-        if l[i] == type(new_element)():
-            l[i] = new_element
-            return i
-    l.append(new_element)
-    return len(l) - 1
+# def replace_empty_or_append(l: List, new_element: Any) -> int:
+#     for i in range(len(l)):
+#         if l[i] == type(new_element)():
+#             l[i] = new_element
+#             return i
+#     l.append(new_element)
+#     return len(l) - 1
 
 
 def legendre_bit(a: int, q: int) -> int:
@@ -1954,75 +1896,75 @@ def process_custody_game_operations(state: BeaconState, body: BeaconBlockBody) -
     for_ops(body.custody_slashings, process_custody_slashing)
 
 
-def process_chunk_challenge(state: BeaconState, challenge: CustodyChunkChallenge) -> None:
-    # Verify the attestation
-    assert is_valid_indexed_attestation(state, get_indexed_attestation(state, challenge.attestation))
-    # Verify it is not too late to challenge the attestation
-    max_attestation_challenge_epoch = Epoch(challenge.attestation.data.target.epoch + MAX_CHUNK_CHALLENGE_DELAY)
-    assert get_current_epoch(state) <= max_attestation_challenge_epoch
-    # Verify it is not too late to challenge the responder
-    responder = state.validators[challenge.responder_index]
-    if responder.exit_epoch < FAR_FUTURE_EPOCH:
-        assert get_current_epoch(state) <= responder.exit_epoch + MAX_CHUNK_CHALLENGE_DELAY
-    # Verify responder is slashable
-    assert is_slashable_validator(responder, get_current_epoch(state))
-    # Verify the responder participated in the attestation
-    attesters = get_attesting_indices(state, challenge.attestation.data, challenge.attestation.aggregation_bits)
-    assert challenge.responder_index in attesters
-    # Verify shard transition is correctly given
-    assert hash_tree_root(challenge.shard_transition) == challenge.attestation.data.shard_transition_root
-    data_root = challenge.shard_transition.shard_data_roots[challenge.data_index]
-    # Verify the challenge is not a duplicate
-    for record in state.custody_chunk_challenge_records:
-        assert (
-            record.data_root != data_root or
-            record.chunk_index != challenge.chunk_index
-        )
-    # Verify depth
-    shard_block_length = challenge.shard_transition.shard_block_lengths[challenge.data_index]
-    transition_chunks = (shard_block_length + BYTES_PER_CUSTODY_CHUNK - 1) // BYTES_PER_CUSTODY_CHUNK
-    assert challenge.chunk_index < transition_chunks
-    # Add new chunk challenge record
-    new_record = CustodyChunkChallengeRecord(
-        challenge_index=state.custody_chunk_challenge_index,
-        challenger_index=get_beacon_proposer_index(state),
-        responder_index=challenge.responder_index,
-        inclusion_epoch=get_current_epoch(state),
-        data_root=challenge.shard_transition.shard_data_roots[challenge.data_index],
-        chunk_index=challenge.chunk_index,
-    )
-    replace_empty_or_append(state.custody_chunk_challenge_records, new_record)
+# def process_chunk_challenge(state: BeaconState, challenge: CustodyChunkChallenge) -> None:
+#     # Verify the attestation
+#     assert is_valid_indexed_attestation(state, get_indexed_attestation(state, challenge.attestation))
+#     # Verify it is not too late to challenge the attestation
+#     max_attestation_challenge_epoch = Epoch(challenge.attestation.data.target.epoch + MAX_CHUNK_CHALLENGE_DELAY)
+#     assert get_current_epoch(state) <= max_attestation_challenge_epoch
+#     # Verify it is not too late to challenge the responder
+#     responder = state.validators[challenge.responder_index]
+#     if responder.exit_epoch < FAR_FUTURE_EPOCH:
+#         assert get_current_epoch(state) <= responder.exit_epoch + MAX_CHUNK_CHALLENGE_DELAY
+#     # Verify responder is slashable
+#     assert is_slashable_validator(responder, get_current_epoch(state))
+#     # Verify the responder participated in the attestation
+#     attesters = get_attesting_indices(state, challenge.attestation.data, challenge.attestation.aggregation_bits)
+#     assert challenge.responder_index in attesters
+#     # Verify shard transition is correctly given
+#     assert hash_tree_root(challenge.shard_transition) == challenge.attestation.data.shard_transition_root
+#     data_root = challenge.shard_transition.shard_data_roots[challenge.data_index]
+#     # Verify the challenge is not a duplicate
+#     for record in state.custody_chunk_challenge_records:
+#         assert (
+#             record.data_root != data_root or
+#             record.chunk_index != challenge.chunk_index
+#         )
+#     # Verify depth
+#     shard_block_length = challenge.shard_transition.shard_block_lengths[challenge.data_index]
+#     transition_chunks = (shard_block_length + BYTES_PER_CUSTODY_CHUNK - 1) // BYTES_PER_CUSTODY_CHUNK
+#     assert challenge.chunk_index < transition_chunks
+#     # Add new chunk challenge record
+#     new_record = CustodyChunkChallengeRecord(
+#         challenge_index=state.custody_chunk_challenge_index,
+#         challenger_index=get_beacon_proposer_index(state),
+#         responder_index=challenge.responder_index,
+#         inclusion_epoch=get_current_epoch(state),
+#         data_root=challenge.shard_transition.shard_data_roots[challenge.data_index],
+#         chunk_index=challenge.chunk_index,
+#     )
+#     replace_empty_or_append(state.custody_chunk_challenge_records, new_record)
 
-    state.custody_chunk_challenge_index += 1
-    # Postpone responder withdrawability
-    responder.withdrawable_epoch = FAR_FUTURE_EPOCH
+#     state.custody_chunk_challenge_index += 1
+#     # Postpone responder withdrawability
+#     responder.withdrawable_epoch = FAR_FUTURE_EPOCH
 
 
-def process_chunk_challenge_response(state: BeaconState,
-                                     response: CustodyChunkResponse) -> None:
-    # Get matching challenge (if any) from records
-    matching_challenges = [
-        record for record in state.custody_chunk_challenge_records
-        if record.challenge_index == response.challenge_index
-    ]
-    assert len(matching_challenges) == 1
-    challenge = matching_challenges[0]
-    # Verify chunk index
-    assert response.chunk_index == challenge.chunk_index
-    # Verify the chunk matches the crosslink data root
-    assert is_valid_merkle_branch(
-        leaf=hash_tree_root(response.chunk),
-        branch=response.branch,
-        depth=CUSTODY_RESPONSE_DEPTH + 1,  # Add 1 for the List length mix-in
-        index=response.chunk_index,
-        root=challenge.data_root,
-    )
-    # Clear the challenge
-    index_in_records = state.custody_chunk_challenge_records.index(challenge)
-    state.custody_chunk_challenge_records[index_in_records] = CustodyChunkChallengeRecord()
-    # Reward the proposer
-    proposer_index = get_beacon_proposer_index(state)
-    increase_balance(state, proposer_index, Gwei(get_base_reward(state, proposer_index) // MINOR_REWARD_QUOTIENT))
+# def process_chunk_challenge_response(state: BeaconState,
+#                                      response: CustodyChunkResponse) -> None:
+#     # Get matching challenge (if any) from records
+#     matching_challenges = [
+#         record for record in state.custody_chunk_challenge_records
+#         if record.challenge_index == response.challenge_index
+#     ]
+#     assert len(matching_challenges) == 1
+#     challenge = matching_challenges[0]
+#     # Verify chunk index
+#     assert response.chunk_index == challenge.chunk_index
+#     # Verify the chunk matches the crosslink data root
+#     assert is_valid_merkle_branch(
+#         leaf=hash_tree_root(response.chunk),
+#         branch=response.branch,
+#         depth=CUSTODY_RESPONSE_DEPTH + 1,  # Add 1 for the List length mix-in
+#         index=response.chunk_index,
+#         root=challenge.data_root,
+#     )
+#     # Clear the challenge
+#     index_in_records = state.custody_chunk_challenge_records.index(challenge)
+#     state.custody_chunk_challenge_records[index_in_records] = CustodyChunkChallengeRecord()
+#     # Reward the proposer
+#     proposer_index = get_beacon_proposer_index(state)
+#     increase_balance(state, proposer_index, Gwei(get_base_reward(state, proposer_index) // MINOR_REWARD_QUOTIENT))
 
 
 def process_custody_key_reveal(state: BeaconState, reveal: CustodyKeyReveal) -> None:

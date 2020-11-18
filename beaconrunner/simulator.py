@@ -157,11 +157,11 @@ def chunk_response_policy(_params, step, sL, s):
     network = s['network']
     responses = []
 
-    # for validator_index, validator in enumerate(network.validators):
-    #     known_items = knowledge_set(network, validator_index)
-    #     chunk_response = validator.chunk_response(known_items)
-    #     if chunk_response is not None:
-    #         responses.append(chunk_response)
+    for validator_index, validator in enumerate(network.validators):
+        known_items = knowledge_set(network, validator_index)
+        chunk_response = validator.chunk_response(known_items)
+        if chunk_response is not None:
+            responses.append(chunk_response)
 
     return ({ 'chunk_responses': responses })
 

@@ -506,6 +506,7 @@ class SignedBeaconBlock(Container):
     message: BeaconBlock
     signature: BLSSignature
 
+, 
 class Eth1Block(Container):
     timestamp: uint64
     deposit_root: Root
@@ -616,7 +617,6 @@ class SignedLightAggregateAndProof(Container):
     signature: BLSSignature
 
 
-    
 def integer_squareroot(n: uint64) -> uint64:
     """
     Return the largest integer ``x`` such that ``x**2 <= n``.

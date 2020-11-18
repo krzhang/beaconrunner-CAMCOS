@@ -118,6 +118,18 @@ class ValidatorData:
     Has the validator received a block for `self.slot`?
     """
 
+    # custody game
+
+    # chunk_challenges_accusations: List[CustodyChunkChallenge]
+
+    # TypeError: cannot unpack non-iterable TypeDefMeta object
+
+    # accusations = *being* challenged
+
+    # chunk_challenge_sent   # different concept from above
+    
+    # chunk_responses_sent: List[CustodyChunkResponse]
+
 class HashableSpecStore(Container):
     """ We cache a map from current state of the `Store` to `head`, since `get_head`
     is computationally intensive. But `Store` is not hashable right off the bat.
@@ -191,6 +203,9 @@ class BRValidator:
         self.history = []
 
         self.data = ValidatorData()
+
+        self.chunk_challenges_accusations = []
+        self.chunk_responses_sent = []
 
     def load_state(self, state: BeaconState) -> None:
         """
@@ -552,6 +567,11 @@ class BRValidator:
         try:
             state = self.process_to_slot(item.message.parent_root, item.message.slot)
             on_block(self.store, item, state = state)
+            # if the block chunk challenges you, you put it in your active challenges
+            for cha in item.message.body.chunk_challenges:
+                if cha.responder_index == self.validator_index:
+                    print(self.validator_index, "feels accused")
+                    self.chunk_challenges_accusations.append((cha, None))
         except AssertionError as e:
             return False
 
@@ -802,7 +822,7 @@ def honest_propose(validator, known_items):
             # data_index and chunk_index have real values, but we can ignore for simulations
         )
         chunk_challenges.append(cha)
-        print(validator.validator_index, "challenging", attestor_index)
+        print("  ", validator.validator_index, "challenging", attestor_index)
 
     beacon_block_body = BeaconBlockBody(
         attestations=attestations,
@@ -821,3 +841,13 @@ def honest_propose(validator, known_items):
     signed_block = SignedBeaconBlock(message=beacon_block, signature=block_signature)
 
     return signed_block
+
+def honest_chunk_challenge_response(validator, known_items):
+    if validator.chunk_challenges_accusations: # has outstanding accusation
+        cha = validator.chunk_challenges_accusations[-1]
+        response = CustodyChunkResponse()
+        validator.chunk_challenges_accusations = validator.chunk_challenges_accusations[:-1]
+#        validator.chunk_challenge_sent.append(response)
+        print(validator.validator_index, "responds to challenge")
+        return response
+    return None

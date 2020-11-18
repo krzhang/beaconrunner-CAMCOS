@@ -8,7 +8,7 @@ from .specs import (
     Slot, Root, Epoch, CommitteeIndex, ValidatorIndex, Store,
     BeaconState, BeaconBlock, BeaconBlockBody, SignedBeaconBlock,
     Attestation, AttestationData, Checkpoint, BLSSignature,
-    CustodyChunkChallenge, CustodyChunkResponse, 
+    CustodyChunkChallenge, CustodyChunkResponse,
     MAX_VALIDATORS_PER_COMMITTEE, VALIDATOR_REGISTRY_LIMIT,
     SLOTS_PER_EPOCH, DOMAIN_RANDAO, DOMAIN_BEACON_PROPOSER,
     DOMAIN_BEACON_ATTESTER, MAX_CUSTODY_CHUNK_CHALLENGES,
@@ -808,14 +808,15 @@ def honest_propose(validator, known_items):
     )
 
     chunk_challenges = []
-    for i in range(MAX_CUSTODY_CHUNK_CHALLENGES):
-        # TODO: be principled about repeats, not having attestations, etc.; right now
-        # I just exit if something bad happens
-        if not known_items['attestations']:
-            continue
-        network_attestation = random.choice(known_items['attestations'])
-        attestor_index = network_attestation.attestor
-        attestation = network_attestation.item
+    challengeable_attestations = [att for att in known_items['attestations']
+                                  if att.attestor != validator.validator_index]
+    # need to make this smaller from now on
+    num_to_challenge = min(MAX_CUSTODY_CHUNK_CHALLENGES, len(challengeable_attestations))
+    network_attestations = random.sample(challengeable_attestations, num_to_challenge)
+
+    for i in range(num_to_challenge):
+        attestor_index = network_attestations[i].attestor
+        attestation = network_attestations[i].item
         cha = CustodyChunkChallenge(
             responder_index=attestor_index,
             attestation=attestation,

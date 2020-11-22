@@ -1,12 +1,12 @@
 from typing import Optional
 
 from ..specs import (
-    Attestation, SignedBeaconBlock, CustodyChunkResponse,
+    Attestation, SignedBeaconBlock, CustodyChunkResponse, CustodySlashing,
     SECONDS_PER_SLOT, SLOTS_PER_EPOCH,
 )
 from ..validatorlib import (
     BRValidator,
-    honest_attest, honest_propose, honest_chunk_challenge_response
+    honest_attest, honest_propose, honest_chunk_challenge_response, honest_bit_challenge
 )
 
 class ASAPValidator(BRValidator):
@@ -79,3 +79,6 @@ class ASAPValidator(BRValidator):
 
     def chunk_response(self, known_items) -> Optional[CustodyChunkResponse]:
         return honest_chunk_challenge_response(self, known_items)
+
+    def honest_bit_challenge(self, known_items) -> Optional[CustodySlashing]:
+        return honest_bit_challenge(self, known_items)

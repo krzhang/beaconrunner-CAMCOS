@@ -8,7 +8,7 @@ from .specs import (
     Slot, Root, Epoch, CommitteeIndex, ValidatorIndex, Store,
     BeaconState, BeaconBlock, BeaconBlockBody, SignedBeaconBlock,
     Attestation, AttestationData, Checkpoint, BLSSignature,
-    CustodyChunkChallenge, CustodyChunkResponse,
+    CustodyChunkChallenge, CustodyChunkResponse, CustodySlashing,
     MAX_VALIDATORS_PER_COMMITTEE, VALIDATOR_REGISTRY_LIMIT,
     SLOTS_PER_EPOCH, DOMAIN_RANDAO, DOMAIN_BEACON_PROPOSER,
     DOMAIN_BEACON_ATTESTER, MAX_CUSTODY_CHUNK_CHALLENGES,
@@ -206,6 +206,9 @@ class BRValidator:
 
         self.chunk_challenges_accusations = []
         self.chunk_responses_sent = []
+
+        self.isBitChallenged = False
+
 
     def load_state(self, state: BeaconState) -> None:
         """
@@ -852,3 +855,26 @@ def honest_chunk_challenge_response(validator, known_items):
         print(validator.validator_index, "responds to challenge")
         return response
     return None
+
+
+def honest_bit_challenge(validator, known_items):
+    
+    if not known_items['attestations']:
+        return None
+    challengeable_attestations = [att for att in known_items['attestations']
+                                  if att.attestor != validator.validator_index]
+    network_attestation = random.choice(challengeable_attestations)
+    attestor_index = network_attestation.attestor
+    attestation = network_attestation.item 
+
+    bit_challenge = CustodySlashing(
+        #Full CustodySlashing to be added later
+        malefactor_index = attestor_index,
+        whistleblower_index = validator.validator_index
+    )
+    print("  ", validator.validator_index, " bit challenging", attestor_index)
+    return bit_challenge
+
+
+
+

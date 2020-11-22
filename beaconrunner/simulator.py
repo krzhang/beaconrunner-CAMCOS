@@ -113,6 +113,12 @@ def update_chunk_responses(_params, step, sL, s, _input):
     # disseminate_chunk_responses(network, _input["chunk_responses"])
 
     return ('network', network)
+
+def update_bit_challenges(_params, step, sL, s, _input):
+
+    network = s["network"]
+
+    return ('network', network)
   
 ## Policies
 
@@ -165,6 +171,22 @@ def chunk_response_policy(_params, step, sL, s):
 
     return ({ 'chunk_responses': responses })
 
+
+# Bit Challenge 
+def bit_challenge_policy(_params, step, sL, s):
+
+    # Pinging validators to check if anyone wants to response to a chunk challenge.
+
+    network = s['network']
+    bit_challenges = []
+
+    for validator_index, validator in enumerate(network.validators):
+        known_items = knowledge_set(network, validator_index)
+        bit_challenge = validator.honest_bit_challenge(known_items)
+        if bit_challenge is not None:
+            bit_challenges.append(bit_challenge)
+
+    return ({ 'bit_challenges': bit_challenges })
  
 ### Simulator shell
 
@@ -211,7 +233,15 @@ def simulate(network: Network, parameters: SimulationParameters, observers: Dict
             'variables': {
                 'network': update_chunk_responses # step 4
             }
-        },      
+        },  
+        {
+            'policies': {
+                'action':  bit_challenge_policy # step 3
+            },
+            'variables': {
+                'network': update_bit_challenges # step 4
+            }
+        },     
         {
             'policies': {
                 'action': propose_policy # step 3

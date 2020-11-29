@@ -35,6 +35,7 @@ class NetworkBlock(object):
 @dataclass
 class Network(object):
     validators: List[BRValidator, VALIDATOR_REGISTRY_LIMIT]
+    utilities: List[uint64, VALIDATOR_REGISTRY_LIMIT]
     sets: List[NetworkSet, VALIDATOR_REGISTRY_LIMIT]
 
     # In a previous implementation, we kept attestations and blocks in the same queue.

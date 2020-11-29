@@ -19,33 +19,48 @@ br.reload_package(br)
 print("beaconrunner loaded!")
 # We then create our observers, to allow us to record interesting metrics at each simulation step.
 
+# An observer seems to be just a function state -> information
 
 current_slot = lambda s: s["network"].validators[0].data.slot
 
-def average_balance_prudent(state):
-    validators = state["network"].validators
-    validator = validators[0]
-    head = br.specs.get_head(validator.store)
-    current_state = validator.store.block_states[head]
-    current_epoch = br.specs.get_current_epoch(current_state)
-    prudent_indices = [i for i, v in enumerate(validators) if v.validator_behaviour == "prudent"]
-    prudent_balances = [b for i, b in enumerate(current_state.balances) if i in prudent_indices]
-    return br.utils.eth2.gwei_to_eth(sum(prudent_balances) / float(len(prudent_indices)))
+def average_balance_observer(validator_type):
+    """ A function factory that returns an observer function"""
+    def obs_func(state):
+        validators = state["network"].validators
+        validator = validators[0]
+        head = br.specs.get_head(validator.store)
+        current_state = validator.store.block_states[head]
+        current_epoch = br.specs.get_current_epoch(current_state)
+        indices = [i for i, v in enumerate(validators) if v.validator_behaviour == validator_type]
+        balances = [b for i, b in enumerate(current_state.balances) if i in indices]
+        utilities = [b for i, b in enumerate(current_state.utilities) if i in indices]
+        return br.utils.eth2.gwei_to_eth((sum(balances) + sum(utilities))/ float(len(indices)))
+    return obs_func
+  
+# def average_balance_prudent(state):
+#     validators = state["network"].validators
+#     validator = validators[0]
+#     head = br.specs.get_head(validator.store)
+#     current_state = validator.store.block_states[head]
+#     current_epoch = br.specs.get_current_epoch(current_state)
+#     prudent_indices = [i for i, v in enumerate(validators) if v.validator_behaviour == "prudent"]
+#     prudent_balances = [b for i, b in enumerate(current_state.balances) if i in prudent_indices]
+#     return br.utils.eth2.gwei_to_eth(sum(prudent_balances) / float(len(prudent_indices)))
 
-def average_balance_asap(state):
-    validators = state["network"].validators
-    validator = validators[0]
-    head = br.specs.get_head(validator.store)
-    current_state = validator.store.block_states[head]
-    current_epoch = br.specs.get_current_epoch(current_state)
-    asap_indices = [i for i, v in enumerate(validators) if v.validator_behaviour == "asap"]
-    asap_balances = [b for i, b in enumerate(current_state.balances) if i in asap_indices]
-    return br.utils.eth2.gwei_to_eth(sum(asap_balances) / float(len(asap_indices)))
+# def average_balance_asap(state):
+#     validators = state["network"].validators
+#     validator = validators[0]
+#     head = br.specs.get_head(validator.store)
+#     current_state = validator.store.block_states[head]
+#     current_epoch = br.specs.get_current_epoch(current_state)
+#     asap_indices = [i for i, v in enumerate(validators) if v.validator_behaviour == "asap"]
+#     asap_balances = [b for i, b in enumerate(current_state.balances) if i in asap_indices]
+#     return br.utils.eth2.gwei_to_eth(sum(asap_balances) / float(len(asap_indices)))
 
 observers = {
     "current_slot": current_slot,
-    "average_balance_prudent": average_balance_prudent,
-    "average_balance_asap": average_balance_asap,
+    "average_balance_prudent": average_balance_observer("prudent"),
+    "average_balance_asap": average_balance_observer("asap")
 }
 
 print("observers implemented!")

@@ -33,7 +33,7 @@ def average_balance_observer(validator_type):
         current_epoch = br.specs.get_current_epoch(current_state)
         indices = [i for i, v in enumerate(validators) if v.validator_behaviour == validator_type]
         balances = [b for i, b in enumerate(current_state.balances) if i in indices]
-        utilities = [b for i, b in enumerate(current_state.utilities) if i in indices]
+        utilities = [validators[i].utility for i in indices]
         return br.utils.eth2.gwei_to_eth((sum(balances) + sum(utilities))/ float(len(indices)))
     return obs_func
   
@@ -86,6 +86,7 @@ def simulate_once(network_sets, num_run, num_validators, network_update_rate):
             new_validator = PrudentValidator(i)
         else:
             new_validator = ASAPValidator(i)
+        new_validator.utility = 0 # this is not in spec, so we are monkeypatching in
         validators.append(new_validator)
     
     # Create a genesis state

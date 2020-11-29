@@ -204,7 +204,7 @@ class SimulationParameters:
         self.network_update_rate = obj["network_update_rate"]
 
 def simulate(network: Network, parameters: SimulationParameters,
-             observers: Dict[str, Callable[[BeaconState, Network], Any]] = {}) -> pd.DataFrame:
+             observers: Dict[str, Callable[[BeaconState], Any]] = {}) -> pd.DataFrame:
     """
     Args:
         network (Network): Network of :py:class:`beaconrunner.validatorlib.BRValidator`

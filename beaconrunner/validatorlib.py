@@ -216,13 +216,21 @@ class BRValidator:
 
         self.isBitChallenged = False
 
+        # self.attest = honest_attest_asap
+        # self.propose = honest_propose
+        # self.chunk_response = honest_chunk_challenge_response
+        # self.bit_challenge = honest_bit_challenge
+        
         self.attest = attest_func
         self.propose = propose_func
         self.chunk_response = chunk_response_func
         self.bit_challenge = bit_challenge_func
 
         self.utility = 0        
-        self.validator_behavior = []
+        self.validator_behavior = [attest_func.__name__,
+                                   propose_func.__name__,
+                                   chunk_response_func.__name__,
+                                   bit_challenge_func.__name__]
 
     def load_state(self, state: BeaconState) -> None:
         """
@@ -954,8 +962,7 @@ def honest_propose(validator, known_items):
         return None
     
     # honest propose
-    return honest_propose(validator, known_items)
-  
+    return honest_propose_base(validator, known_items)
 
 def honest_chunk_challenge_response(validator, known_items):
     if validator.chunk_challenges_accusations: # has outstanding accusation
@@ -986,9 +993,6 @@ def honest_bit_challenge(validator, known_items):
     print("  ", validator.validator_index, " bit challenging", attestor_index)
     return bit_challenge
 
-
-
-
 ## Validator makers
 
 def validator_maker(num_validators,
@@ -1018,8 +1022,8 @@ def validator_maker(num_validators,
         ft = func_types_big[i]
         new_validator = BRValidator(i, attest_func=ft[0], propose_func=ft[1],
                                     chunk_response_func=ft[2], bit_challenge_func = ft[3])
-        new_validator.validator_behavior = [f.__name__ for f in ft]
-        new_validator.utility = 0 # this is not in spec, so we are monkeypatching in
+#        new_validator.validator_behavior = [f.__name__ for f in ft]
+#        new_validator.utility = 0 # this is not in spec, so we are monkeypatching in
         validators.append(new_validator)
     return validators
   

@@ -12,6 +12,7 @@ sys.path.insert(1, os.path.realpath(os.path.pardir))
 print("auxiliary imports loaded!")
 
 import beaconrunner as br
+import br.validatorlib as brv
 
 prepare_config(".", "fast")
 br.reload_package(br)
@@ -31,7 +32,7 @@ def average_balance_observer(validator_type):
         head = br.specs.get_head(validator.store)
         current_state = validator.store.block_states[head]
         current_epoch = br.specs.get_current_epoch(current_state)
-        indices = [i for i, v in enumerate(validators) if v.validator_behaviour == validator_type]
+        indices = [i for i, v in enumerate(validators) if validator_type in v.validator_behaviour]
         balances = [b for i, b in enumerate(current_state.balances) if i in indices]
         utilities = [validators[i].utility for i in indices]
         return br.utils.eth2.gwei_to_eth((sum(balances) + sum(utilities))/ float(len(indices)))
@@ -67,28 +68,20 @@ print("observers implemented!")
 
 # And define a "main" function -- in this case, simulate_thunderdome -- to run the simulation. The function returns a pandas dataframe containing the metrics recorded throughout the run.
 
-from random import sample
-from beaconrunner.validators.ASAPValidator import ASAPValidator
-from beaconrunner.validators.PrudentValidator import PrudentValidator
+# from beaconrunner.validators.ASAPValidator import ASAPValidator
+# from beaconrunner.validators.PrudentValidator import PrudentValidator
+
+attest_funcs = [brv.honest_attest_asap, brv.honest_attest_prudent]
+propose_funcs = [brv.honest_propose]
+chunk_response_funcs = [brv.honest_chunk_challenge_response]
+bit_challenge_funcs = [brv.honest_bit_challenge]
 
 def simulate_once(network_sets, num_run, num_validators, network_update_rate):
-    # Half our validators are prudent, the others are ASAPs
-    num_prudent = int(num_validators / 2)
 
-    # We sample the position on the p2p network of prudent validators randomly
-    prudentset = set(sample(range(num_validators), num_prudent))
+    validators = brv.validator_maker(num_validators, attest_funcs, propose_funcs,
+                                     chunk_response_funcs, bit_challenge_funcs)
+    print("%d validators created!" % len(validators))
 
-    validators = []
-
-    # Initiate validators
-    for i in range(num_validators):
-        if i in prudentset:
-            new_validator = PrudentValidator(i)
-        else:
-            new_validator = ASAPValidator(i)
-        new_validator.utility = 0 # this is not in spec, so we are monkeypatching in
-        validators.append(new_validator)
-    
     # Create a genesis state
     genesis_state = br.simulator.get_genesis_state(validators)
     

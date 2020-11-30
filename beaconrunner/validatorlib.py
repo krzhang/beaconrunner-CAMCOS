@@ -1,5 +1,6 @@
 import time
 import random
+import itertools
 
 from typing import Set, Optional, Sequence, Tuple, Dict, Text
 from dataclasses import dataclass, field
@@ -189,7 +190,11 @@ class BRValidator:
     `process_slots(current_state, to_slot)`.
     """
 
-    def __init__(self, validator_index: ValidatorIndex):
+    def __init__(self, validator_index: ValidatorIndex,
+                 attest_func=None,
+                 propose_func=None,
+                 chunk_response_func=None,
+                 bit_challenge_func=None):
         """
         Validator constructor
         We preload a bunch of things, to be updated later on as needed
@@ -209,6 +214,11 @@ class BRValidator:
 
         self.isBitChallenged = False
 
+        self.attest = attest_func
+        self.propose = propose_func
+        self.chunk_response = chunk_response_func
+        self.bit_challenge = bit_challenge_func
+        
 
     def load_state(self, state: BeaconState) -> None:
         """
@@ -674,9 +684,11 @@ def get_attestation_signature(state: BeaconState, attestation_data: AttestationD
     signing_root = compute_signing_root(attestation_data, domain)
     return bls.Sign(privkey, signing_root)
 
-def honest_attest(validator, known_items):
+def honest_attest_base(validator, known_items):
     """
-    Returns an honest attestation from `validator`, without timing checks, etc.
+    Returns an honest attestation from `validator`.
+
+    This is a "base" function because it does not have timing checks, etc.
 
     Args:
         validator (BRValidator): The attesting validator
@@ -755,7 +767,7 @@ def honest_attest_asap(validator, known_items):
         return None
     
     # honest attest
-    return honest_attest(validator, known_items)
+    return honest_attest_base(validator, known_items)
   
 def honest_attest_prudent(validator, known_items):
     """
@@ -787,7 +799,7 @@ def honest_attest_prudent(validator, known_items):
         return None
     
     # honest attest
-    return honest_attest(validator, known_items)
+    return honest_attest_base(validator, known_items)
 
   
 ### Aggregation helpers
@@ -848,9 +860,11 @@ def should_process_attestation(state: BeaconState, attestation: Attestation) -> 
     except:
         return False
 
-def honest_propose(validator, known_items):
+def honest_propose_base(validator, known_items):
     """
     Returns an honest block, using the current LMD-GHOST head and all known, aggregated, attestations.
+
+    Again, a "base" function since it does not do timing checks, rule checks, etc.
 
     Args:
         validator (BRValidator): The proposing validator
@@ -912,6 +926,33 @@ def honest_propose(validator, known_items):
 
     return signed_block
 
+def honest_propose(validator, known_items):
+    """
+    Returns an honest `SignedBeaconBlock` as soon as the slot where
+    the validator is supposed to propose starts.
+    Checks whether a block was proposed for the same slot to avoid slashing.
+    
+    Args:
+        validator: Validator
+        known_items (Dict): Known blocks and attestations received over-the-wire (but perhaps not included yet in `validator.store`)
+    
+    Returns:
+        Optional[SignedBeaconBlock]: Either `None` if the validator decides not to propose,
+        otherwise a `SignedBeaconBlock` containing attestations
+    """
+    
+    # Not supposed to propose for current slot
+    if not validator.data.current_proposer_duties[validator.data.slot % SLOTS_PER_EPOCH]:
+        return None
+    
+    # Already proposed for this slot
+    if validator.data.last_slot_proposed == validator.data.slot:
+        return None
+    
+    # honest propose
+    return honest_propose(validator, known_items)
+  
+
 def honest_chunk_challenge_response(validator, known_items):
     if validator.chunk_challenges_accusations: # has outstanding accusation
         cha = validator.chunk_challenges_accusations[-1]
@@ -943,4 +984,39 @@ def honest_bit_challenge(validator, known_items):
 
 
 
+
+## Validator makers
+
+def validator_maker(num_validators,
+                    attest_funcs,
+                    propose_funcs,
+                    chunk_response_funcs,
+                    bit_challenge_funcs):
+    """ 
+    make validators out of types that are crossed in the ratios of the funcs that make up
+    their responses.
+
+    validator_behavior is a collection
+    """
+    validators = []
+    
+    func_types = itertools.product(attest_funcs, propose_funcs, chunk_response_funcs,
+                                   bit_challenge_funcs)
+
+    num_validators_real = num_validators - (num_validators % len(func_types)) # now it's divisible
+    copies = num_validators_real / len(func_types) # number of validators per cross-type
+
+    func_types_big = list(func_types)*copies
+    random.shuffle(func_types_big)
+
+    # Initiate validators
+    for i in range(num_validators_real):
+        ft = func_types_big[i]
+        new_validator = BRValidator(i, attest_func=ft[0], propose_func=ft[1],
+                                    chunk_response_func=ft[2], bit_challenge_func = ft[3])
+        new_validator.validator_behavior = [f.__name__ for f in ft]
+        new_validator.utility = 0 # this is not in spec, so we are monkeypatching in
+        validators.append(new_validator)
+    return validators
+  
 

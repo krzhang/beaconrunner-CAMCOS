@@ -676,7 +676,7 @@ def get_attestation_signature(state: BeaconState, attestation_data: AttestationD
 
 def honest_attest(validator, known_items):
     """
-    Returns an honest attestation from `validator`.
+    Returns an honest attestation from `validator`, without timing checks, etc.
 
     Args:
         validator (BRValidator): The attesting validator
@@ -724,6 +724,72 @@ def honest_attest(validator, known_items):
 
     return attestation
 
+def honest_attest_asap(validator, known_items):
+    """
+    Returns an honest `Attestation` as soon as at least four seconds (`SECONDS_PER_SLOT / 3`)
+    have elapsed into the slot where the validator is supposed to attest or the validator
+    has received a valid block for the attesting slot.
+    Checks whether an attestation was produced for the same slot to avoid slashing.
+    
+    Args:
+        validator: Validator
+        known_items (Dict): Known blocks and attestations received over-the-wire (but perhaps not included yet in `validator.store`)
+    
+    Returns:
+        Optional[Attestation]: Either `None` if the validator decides not to attest,
+        otherwise an honest `Attestation`
+    """
+    
+    # Not the moment to attest
+    if validator.data.current_attest_slot != validator.data.slot:
+        return None
+    
+    time_in_slot = (validator.store.time - validator.store.genesis_time) % SECONDS_PER_SLOT
+    
+    # Too early in the slot / didn't receive block
+    if not validator.data.received_block and time_in_slot < 4:
+        return None
+    
+    # Already attested for this slot
+    if validator.data.last_slot_attested == validator.data.slot:
+        return None
+    
+    # honest attest
+    return honest_attest(validator, known_items)
+  
+def honest_attest_prudent(validator, known_items):
+    """
+    Returns an honest `Attestation` as soon as a block was received for the
+    attesting slot *or* at least 8 seconds (`2 * SECONDS_PER_SLOT / 3`) have elapsed.
+    Checks whether an attestation was produced for the same slot to avoid slashing.
+    
+    Args:
+        validator: Validator
+        known_items (Dict): Known blocks and attestations received over-the-wire (but perhaps not included yet in `validator.store`)
+    
+    Returns:
+        Optional[Attestation]: Either `None` if the validator decides not to attest,
+        otherwise an honest `Attestation`
+    """
+    
+    # Not the moment to attest
+    if validator.data.current_attest_slot != validator.data.slot:
+        return None
+    
+    time_in_slot = (validator.store.time - validator.store.genesis_time) % SECONDS_PER_SLOT
+    
+    # Too early in the slot / didn't receive block
+    if not validator.data.received_block and time_in_slot < 8:
+        return None
+    
+    # Already attested for this slot
+    if validator.data.last_slot_attested == validator.data.slot:
+        return None
+    
+    # honest attest
+    return honest_attest(validator, known_items)
+
+  
 ### Aggregation helpers
 
 def get_aggregate_signature(attestations: Sequence[Attestation]) -> BLSSignature:

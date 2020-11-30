@@ -12,7 +12,7 @@ sys.path.insert(1, os.path.realpath(os.path.pardir))
 print("auxiliary imports loaded!")
 
 import beaconrunner as br
-import br.validatorlib as brv
+import beaconrunner.validatorlib as brv
 
 prepare_config(".", "fast")
 br.reload_package(br)
@@ -32,7 +32,7 @@ def average_balance_observer(validator_type):
         head = br.specs.get_head(validator.store)
         current_state = validator.store.block_states[head]
         current_epoch = br.specs.get_current_epoch(current_state)
-        indices = [i for i, v in enumerate(validators) if validator_type in v.validator_behaviour]
+        indices = [i for i, v in enumerate(validators) if validator_type in v.validator_behavior]
         balances = [b for i, b in enumerate(current_state.balances) if i in indices]
         utilities = [validators[i].utility for i in indices]
         return br.utils.eth2.gwei_to_eth((sum(balances) + sum(utilities))/ float(len(indices)))
@@ -60,8 +60,8 @@ def average_balance_observer(validator_type):
 
 observers = {
     "current_slot": current_slot,
-    "average_balance_prudent": average_balance_observer("prudent"),
-    "average_balance_asap": average_balance_observer("asap")
+    "average_balance_prudent": average_balance_observer("honest_attest_prudent"),
+    "average_balance_asap": average_balance_observer("honest_attest_asap")
 }
 
 print("observers implemented!")
@@ -90,7 +90,7 @@ def simulate_once(network_sets, num_run, num_validators, network_update_rate):
 
     br.simulator.skip_genesis_block(validators)
 
-    network = br.network.Network(validators = validators, sets=network_sets)
+    network = br.network.Network(validators=validators, sets=network_sets)
 
     parameters = br.simulator.SimulationParameters({
         "num_epochs": 20,

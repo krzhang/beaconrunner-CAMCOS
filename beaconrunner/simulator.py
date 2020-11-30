@@ -132,7 +132,7 @@ def attest_policy(_params, step, sL, s):
 
     for validator_index, validator in enumerate(network.validators):
         known_items = knowledge_set(network, validator_index)
-        attestation = validator.attest(known_items)
+        attestation = validator.attest(validator, known_items)
         if attestation is not None:
             produced_attestations.append([validator_index, attestation])
 
@@ -148,7 +148,7 @@ def propose_policy(_params, step, sL, s):
 
     for validator_index, validator in enumerate(network.validators):
         known_items = knowledge_set(network, validator_index)
-        block = validator.propose(known_items)
+        block = validator.propose(validator, known_items)
         if block is not None:
             produced_blocks.append(block)
 
@@ -165,7 +165,7 @@ def chunk_response_policy(_params, step, sL, s):
 
     for validator_index, validator in enumerate(network.validators):
         known_items = knowledge_set(network, validator_index)
-        chunk_response = validator.chunk_response(known_items)
+        chunk_response = validator.chunk_response(validator, known_items)
         if chunk_response is not None:
             responses.append(chunk_response)
 
@@ -182,7 +182,7 @@ def bit_challenge_policy(_params, step, sL, s):
 
     for validator_index, validator in enumerate(network.validators):
         known_items = knowledge_set(network, validator_index)
-        bit_challenge = validator.honest_bit_challenge(known_items)
+        bit_challenge = validator.bit_challenge(validator, known_items)
         if bit_challenge is not None:
             bit_challenges.append(bit_challenge)
 

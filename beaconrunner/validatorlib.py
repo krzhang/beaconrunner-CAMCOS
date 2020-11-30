@@ -12,7 +12,7 @@ from .specs import (
     CustodyChunkChallenge, CustodyChunkResponse, CustodySlashing,
     MAX_VALIDATORS_PER_COMMITTEE, VALIDATOR_REGISTRY_LIMIT,
     SLOTS_PER_EPOCH, DOMAIN_RANDAO, DOMAIN_BEACON_PROPOSER,
-    DOMAIN_BEACON_ATTESTER, MAX_CUSTODY_CHUNK_CHALLENGES,
+    DOMAIN_BEACON_ATTESTER, MAX_CUSTODY_CHUNK_CHALLENGES, SECONDS_PER_SLOT, 
     get_forkchoice_store, get_current_slot, compute_epoch_at_slot,
     get_head, process_slots, on_tick, get_current_epoch,
     get_committee_assignment, compute_start_slot_at_epoch,
@@ -219,6 +219,7 @@ class BRValidator:
         self.chunk_response = chunk_response_func
         self.bit_challenge = bit_challenge_func
         
+        self.validator_behavior = []
 
     def load_state(self, state: BeaconState) -> None:
         """
@@ -1000,11 +1001,11 @@ def validator_maker(num_validators,
     """
     validators = []
     
-    func_types = itertools.product(attest_funcs, propose_funcs, chunk_response_funcs,
-                                   bit_challenge_funcs)
+    func_types = list(itertools.product(attest_funcs, propose_funcs, chunk_response_funcs,
+                                   bit_challenge_funcs))
 
-    num_validators_real = num_validators - (num_validators % len(func_types)) # now it's divisible
-    copies = num_validators_real / len(func_types) # number of validators per cross-type
+    copies = int(num_validators / len(func_types)) # number of validators per cross-type
+    num_validators_real = len(func_types)*copies # now it's divisible
 
     func_types_big = list(func_types)*copies
     random.shuffle(func_types_big)

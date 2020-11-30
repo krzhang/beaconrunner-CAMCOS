@@ -190,6 +190,8 @@ class BRValidator:
     `process_slots(current_state, to_slot)`.
     """
 
+    utility: uint64
+    
     def __init__(self, validator_index: ValidatorIndex,
                  attest_func=None,
                  propose_func=None,
@@ -218,7 +220,8 @@ class BRValidator:
         self.propose = propose_func
         self.chunk_response = chunk_response_func
         self.bit_challenge = bit_challenge_func
-        
+
+        self.utility = 0        
         self.validator_behavior = []
 
     def load_state(self, state: BeaconState) -> None:

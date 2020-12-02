@@ -570,6 +570,40 @@ class SignedAggregateAndProof(Container):
 #     proposer_signature_aggregate: BLSSignature
 
 
+# @dataclass(eq=True, frozen=True)
+# class LatestMessage(object):
+#     epoch: Epoch
+#     root: Root
+
+
+# @dataclass(eq=True, frozen=True)
+# class ShardLatestMessage(object):
+#     epoch: Epoch
+#     root: Root
+
+
+# @dataclass
+# class ShardStore:
+#     shard: Shard
+#     signed_blocks: Dict[Root, SignedShardBlock] = field(default_factory=dict)
+#     block_states: Dict[Root, ShardState] = field(default_factory=dict)
+#     latest_messages: Dict[ValidatorIndex, ShardLatestMessage] = field(default_factory=dict)
+
+
+# @dataclass
+# class Store(object):
+#     time: uint64
+#     genesis_time: uint64
+#     justified_checkpoint: Checkpoint
+#     finalized_checkpoint: Checkpoint
+#     best_justified_checkpoint: Checkpoint
+#     blocks: Dict[Root, BeaconBlock] = field(default_factory=dict)
+#     block_states: Dict[Root, BeaconState] = field(default_factory=dict)
+#     checkpoint_states: Dict[Checkpoint, BeaconState] = field(default_factory=dict)
+#     latest_messages: Dict[ValidatorIndex, LatestMessage] = field(default_factory=dict)
+#     shard_stores: Dict[Shard, ShardStore] = field(default_factory=dict)
+
+
 class CompactCommittee(Container):
     pubkeys: List[BLSPubkey, MAX_VALIDATORS_PER_COMMITTEE]
     compact_validators: List[uint64, MAX_VALIDATORS_PER_COMMITTEE]
@@ -1084,6 +1118,29 @@ def initialize_beacon_state_from_eth1(eth1_block_hash: Bytes32,
     return state
 
 
+# def is_valid_genesis_state(state: BeaconState) -> bool:
+#     if state.genesis_time < MIN_GENESIS_TIME:
+#         return False
+#     if len(get_active_validator_indices(state, GENESIS_EPOCH)) < MIN_GENESIS_ACTIVE_VALIDATOR_COUNT:
+#         return False
+#     return True
+
+
+# def state_transition(state: BeaconState, signed_block: SignedBeaconBlock, validate_result: bool=True) -> BeaconState:
+#     block = signed_block.message
+#     # Process slots (including those with no blocks) since block
+#     process_slots(state, block.slot)
+#     # Verify signature
+#     if validate_result:
+#         assert verify_block_signature(state, signed_block)
+#     # Process block
+#     process_block(state, block)
+#     # Verify state root
+#     if validate_result:
+#         assert block.state_root == hash_tree_root(state)
+#     # Return post-state
+#     return state
+
 def is_valid_genesis_state(state: BeaconState) -> bool:
     if state.genesis_time < MIN_GENESIS_TIME:
         return False
@@ -1107,6 +1164,43 @@ def state_transition(state: BeaconState, signed_block: SignedBeaconBlock, valida
     # Return post-state
     return state
 
+
+
+
+# def verify_block_signature(state: BeaconState, signed_block: SignedBeaconBlock) -> bool:
+#     proposer = state.validators[signed_block.message.proposer_index]
+#     signing_root = compute_signing_root(signed_block.message, get_domain(state, DOMAIN_BEACON_PROPOSER))
+#     return bls.Verify(proposer.pubkey, signing_root, signed_block.signature)
+
+
+# def process_slots(state: BeaconState, slot: Slot) -> None:
+#     assert state.slot < slot
+#     while state.slot < slot:
+#         process_slot(state)
+#         # Process epoch on the start slot of the next epoch
+#         if (state.slot + 1) % SLOTS_PER_EPOCH == 0:
+#             process_epoch(state)
+#         state.slot = Slot(state.slot + 1)
+
+
+# def process_slot(state: BeaconState) -> None:
+#     # Cache state root
+#     previous_state_root = hash_tree_root(state)
+#     state.state_roots[state.slot % SLOTS_PER_HISTORICAL_ROOT] = previous_state_root
+#     # Cache latest block header state root
+#     if state.latest_block_header.state_root == Bytes32():
+#         state.latest_block_header.state_root = previous_state_root
+#     # Cache block root
+#     previous_block_root = hash_tree_root(state.latest_block_header)
+#     state.block_roots[state.slot % SLOTS_PER_HISTORICAL_ROOT] = previous_block_root
+
+
+# def process_epoch(state: BeaconState) -> None:
+#     process_justification_and_finalization(state)
+#     process_rewards_and_penalties(state)
+#     process_registry_updates(state)
+#     process_slashings(state)
+#     process_final_updates(state)
 
 def verify_block_signature(state: BeaconState, signed_block: SignedBeaconBlock) -> bool:
     proposer = state.validators[signed_block.message.proposer_index]
@@ -1140,10 +1234,13 @@ def process_epoch(state: BeaconState) -> None:
     process_justification_and_finalization(state)
     process_rewards_and_penalties(state)
     process_registry_updates(state)
+    # process_reveal_deadlines(state)
+    # process_challenge_deadlines(state)
     process_slashings(state)
-    process_final_updates(state)
+    process_final_updates(state)  # phase 0 final updates
+    # process_phase_1_final_updates(state)
 
-
+    
 def get_matching_source_attestations(state: BeaconState, epoch: Epoch) -> Sequence[PendingAttestation]:
     assert epoch in (get_previous_epoch(state), get_current_epoch(state))
     return state.current_epoch_attestations if epoch == get_current_epoch(state) else state.previous_epoch_attestations
@@ -1463,6 +1560,40 @@ def process_block_header(state: BeaconState, block: BeaconBlock) -> None:
     assert not proposer.slashed
 
 
+# def process_randao(state: BeaconState, body: BeaconBlockBody) -> None:
+#     epoch = get_current_epoch(state)
+#     # Verify RANDAO reveal
+#     proposer = state.validators[get_beacon_proposer_index(state)]
+#     signing_root = compute_signing_root(epoch, get_domain(state, DOMAIN_RANDAO))
+#     assert bls.Verify(proposer.pubkey, signing_root, body.randao_reveal)
+#     # Mix in RANDAO reveal
+#     mix = xor(get_randao_mix(state, epoch), hash(body.randao_reveal))
+#     state.randao_mixes[epoch % EPOCHS_PER_HISTORICAL_VECTOR] = mix
+
+
+# def process_eth1_data(state: BeaconState, body: BeaconBlockBody) -> None:
+#     state.eth1_data_votes.append(body.eth1_data)
+#     if state.eth1_data_votes.count(body.eth1_data) * 2 > EPOCHS_PER_ETH1_VOTING_PERIOD * SLOTS_PER_EPOCH:
+#         state.eth1_data = body.eth1_data
+
+
+# def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
+#     # Verify that outstanding deposits are processed up to the maximum number of deposits
+#     # assert len(body.deposits) == min(MAX_DEPOSITS, state.eth1_data.deposit_count - state.eth1_deposit_index)
+
+#     def for_ops(operations: Sequence[Any], fn: Callable[[BeaconState, Any], None]) -> None:
+#         for operation in operations:
+#             fn(state, operation)
+
+#     for_ops(body.proposer_slashings, process_proposer_slashing)
+#     for_ops(body.attester_slashings, process_attester_slashing)
+#     for_ops(body.attestations, process_attestation)
+#     for_ops(body.deposits, process_deposit)
+#     for_ops(body.voluntary_exits, process_voluntary_exit)
+
+
+
+
 def process_randao(state: BeaconState, body: BeaconBlockBody) -> None:
     epoch = get_current_epoch(state)
     # Verify RANDAO reveal
@@ -1482,7 +1613,7 @@ def process_eth1_data(state: BeaconState, body: BeaconBlockBody) -> None:
 
 def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
     # Verify that outstanding deposits are processed up to the maximum number of deposits
-    # assert len(body.deposits) == min(MAX_DEPOSITS, state.eth1_data.deposit_count - state.eth1_deposit_index)
+    assert len(body.deposits) == min(MAX_DEPOSITS, state.eth1_data.deposit_count - state.eth1_deposit_index)
 
     def for_ops(operations: Sequence[Any], fn: Callable[[BeaconState, Any], None]) -> None:
         for operation in operations:
@@ -1490,9 +1621,20 @@ def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
 
     for_ops(body.proposer_slashings, process_proposer_slashing)
     for_ops(body.attester_slashings, process_attester_slashing)
+    # New attestation processing
     for_ops(body.attestations, process_attestation)
     for_ops(body.deposits, process_deposit)
     for_ops(body.voluntary_exits, process_voluntary_exit)
+
+    # See custody game spec.
+    # put back in later
+    # process_custody_game_operations(state, body)
+
+    # put back in later
+    # process_shard_transitions(state, body.shard_transitions, body.attestations)
+
+    # TODO process_operations(body.shard_receipt_proofs, process_shard_receipt_proofs)
+
 
 
 def process_proposer_slashing(state: BeaconState, proposer_slashing: ProposerSlashing) -> None:
@@ -2077,6 +2219,17 @@ def replace_empty_or_append(l: List, new_element: Any) -> int:
     l.append(new_element)
     return len(l) - 1
 
+def process_custody_game_operations(state: BeaconState, body: BeaconBlockBody) -> None:
+    def for_ops(operations: Sequence[Any], fn: Callable[[BeaconState, Any], None]) -> None:
+        for operation in operations:
+            fn(state, operation)
+
+    # commenting out things we don't need to use
+    # for_ops(body.chunk_challenges, process_chunk_challenge)
+    # for_ops(body.chunk_challenge_responses, process_chunk_challenge_response)
+    # for_ops(body.custody_key_reveals, process_custody_key_reveal)
+    # for_ops(body.early_derived_secret_reveals, process_early_derived_secret_reveal)
+    # for_ops(body.custody_slashings, process_custody_slashing)
 
 def process_chunk_challenge(state: BeaconState, challenge: CustodyChunkChallenge) -> None:
     # Verify the attestation

@@ -36,66 +36,10 @@ CONFIG_NAME = 'mainnet'
 fork = 'phase1'
 
 
-apply_constants_config(globals())
-
-
-
-@dataclass(eq=True, frozen=True)
-class LatestMessage(object):
-    epoch: Epoch
-    root: Root
-
-
-@dataclass(eq=True, frozen=True)
-class ShardLatestMessage(object):
-    epoch: Epoch
-    root: Root
-
-
-@dataclass
-class ShardStore:
-    shard: Shard
-    signed_blocks: Dict[Root, SignedShardBlock] = field(default_factory=dict)
-    block_states: Dict[Root, ShardState] = field(default_factory=dict)
-    latest_messages: Dict[ValidatorIndex, ShardLatestMessage] = field(default_factory=dict)
-
-
-@dataclass
-class Store(object):
-    time: uint64
-    genesis_time: uint64
-    justified_checkpoint: Checkpoint
-    finalized_checkpoint: Checkpoint
-    best_justified_checkpoint: Checkpoint
-    blocks: Dict[Root, BeaconBlock] = field(default_factory=dict)
-    block_states: Dict[Root, BeaconState] = field(default_factory=dict)
-    checkpoint_states: Dict[Checkpoint, BeaconState] = field(default_factory=dict)
-    latest_messages: Dict[ValidatorIndex, LatestMessage] = field(default_factory=dict)
-    shard_stores: Dict[Shard, ShardStore] = field(default_factory=dict)
-
 
 # def get_current_epoch(state: BeaconState) -> Epoch:
-#     """
-#     Return the current epoch.
-#     """
-#     return compute_epoch_at_slot(state.slot)
-
-
-
 
 # def get_beacon_proposer_index(state: BeaconState) -> ValidatorIndex:
-#     """
-#     Return the beacon proposer index at the current slot.
-#     """
-#     epoch = get_current_epoch(state)
-#     seed = hash(get_seed(state, epoch, DOMAIN_BEACON_PROPOSER) + uint_to_bytes(state.slot))
-#     indices = get_active_validator_indices(state, epoch)
-#     return compute_proposer_index(state, indices, seed)
-
-
-
-
-
 
 def slash_validator(state: BeaconState,
                     slashed_index: ValidatorIndex,
@@ -450,21 +394,10 @@ def process_block_header(state: BeaconState, block: BeaconBlock) -> None:
     assert not proposer.slashed
 
 
-def process_randao(state: BeaconState, body: BeaconBlockBody) -> None:
-    epoch = get_current_epoch(state)
-    # Verify RANDAO reveal
-    proposer = state.validators[get_beacon_proposer_index(state)]
-    signing_root = compute_signing_root(epoch, get_domain(state, DOMAIN_RANDAO))
-    assert bls.Verify(proposer.pubkey, signing_root, body.randao_reveal)
-    # Mix in RANDAO reveal
-    mix = xor(get_randao_mix(state, epoch), hash(body.randao_reveal))
-    state.randao_mixes[epoch % EPOCHS_PER_HISTORICAL_VECTOR] = mix
+# def process_randao(state: BeaconState, body: BeaconBlockBody) -> None:
 
+# def process_eth1_data(state: BeaconState, body: BeaconBlockBody) -> None:
 
-def process_eth1_data(state: BeaconState, body: BeaconBlockBody) -> None:
-    state.eth1_data_votes.append(body.eth1_data)
-    if state.eth1_data_votes.count(body.eth1_data) * 2 > EPOCHS_PER_ETH1_VOTING_PERIOD * SLOTS_PER_EPOCH:
-        state.eth1_data = body.eth1_data
 
 
 def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
@@ -490,42 +423,9 @@ def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
     # TODO process_operations(body.shard_receipt_proofs, process_shard_receipt_proofs)
 
 
-def process_proposer_slashing(state: BeaconState, proposer_slashing: ProposerSlashing) -> None:
-    header_1 = proposer_slashing.signed_header_1.message
-    header_2 = proposer_slashing.signed_header_2.message
+# def process_proposer_slashing(state: BeaconState, proposer_slashing: ProposerSlashing) -> None:
 
-    # Verify header slots match
-    assert header_1.slot == header_2.slot
-    # Verify header proposer indices match
-    assert header_1.proposer_index == header_2.proposer_index
-    # Verify the headers are different
-    assert header_1 != header_2
-    # Verify the proposer is slashable
-    proposer = state.validators[header_1.proposer_index]
-    assert is_slashable_validator(proposer, get_current_epoch(state))
-    # Verify signatures
-    for signed_header in (proposer_slashing.signed_header_1, proposer_slashing.signed_header_2):
-        domain = get_domain(state, DOMAIN_BEACON_PROPOSER, compute_epoch_at_slot(signed_header.message.slot))
-        signing_root = compute_signing_root(signed_header.message, domain)
-        assert bls.Verify(proposer.pubkey, signing_root, signed_header.signature)
-
-    slash_validator(state, header_1.proposer_index)
-
-
-def process_attester_slashing(state: BeaconState, attester_slashing: AttesterSlashing) -> None:
-    attestation_1 = attester_slashing.attestation_1
-    attestation_2 = attester_slashing.attestation_2
-    assert is_slashable_attestation_data(attestation_1.data, attestation_2.data)
-    assert is_valid_indexed_attestation(state, attestation_1)
-    assert is_valid_indexed_attestation(state, attestation_2)
-
-    slashed_any = False
-    indices = set(attestation_1.attesting_indices).intersection(attestation_2.attesting_indices)
-    for index in sorted(indices):
-        if is_slashable_validator(state.validators[index], get_current_epoch(state)):
-            slash_validator(state, index)
-            slashed_any = True
-    assert slashed_any
+# def process_attester_slashing(state: BeaconState, attester_slashing: AttesterSlashing) -> None:
 
 
 def process_attestation(state: BeaconState, attestation: Attestation) -> None:
@@ -897,37 +797,12 @@ def check_if_validator_active(state: BeaconState, validator_index: ValidatorInde
 #                              epoch: Epoch,
 #                              validator_index: ValidatorIndex
 #                              ) -> Optional[Tuple[Sequence[ValidatorIndex], CommitteeIndex, Slot]]:
-#     """
-#     Return the committee assignment in the ``epoch`` for ``validator_index``.
-#     ``assignment`` returned is a tuple of the following form:
-#         * ``assignment[0]`` is the list of validators in the committee
-#         * ``assignment[1]`` is the index to which the committee is assigned
-#         * ``assignment[2]`` is the slot at which the committee is assigned
-#     Return None if no assignment.
-#     """
-#     next_epoch = Epoch(get_current_epoch(state) + 1)
-#     assert epoch <= next_epoch
-
-#     start_slot = compute_start_slot_at_epoch(epoch)
-#     committee_count_per_slot = get_committee_count_per_slot(state, epoch)
-#     for slot in range(start_slot, start_slot + SLOTS_PER_EPOCH):
-#         for index in range(committee_count_per_slot):
-#             committee = get_beacon_committee(state, Slot(slot), CommitteeIndex(index))
-#             if validator_index in committee:
-#                 return committee, CommitteeIndex(index), Slot(slot)
-#     return None
 #
 # ...
 #
 # def get_aggregate_and_proof_signature(state: BeaconState,
 #                                       aggregate_and_proof: AggregateAndProof,
 #                                       privkey: int) -> BLSSignature:
-#     aggregate = aggregate_and_proof.aggregate
-#     domain = get_domain(state, DOMAIN_AGGREGATE_AND_PROOF, compute_epoch_at_slot(aggregate.data.slot))
-#     signing_root = compute_signing_root(aggregate_and_proof, domain)
-#     return bls.Sign(privkey, signing_root)
-
-
 
 
 def pack_compact_validator(index: ValidatorIndex, slashed: bool, balance_in_increments: uint64) -> uint64:
@@ -1804,13 +1679,6 @@ def on_shard_block(store: Store, signed_shard_block: SignedShardBlock) -> None:
 
 
 # def replace_empty_or_append(l: List, new_element: Any) -> int:
-#     for i in range(len(l)):
-#         if l[i] == type(new_element)():
-#             l[i] = new_element
-#             return i
-#     l.append(new_element)
-#     return len(l) - 1
-
 
 def legendre_bit(a: int, q: int) -> int:
     if a >= q:
@@ -1884,87 +1752,7 @@ def get_custody_period_for_validator(validator_index: ValidatorIndex, epoch: Epo
     return (epoch + validator_index % EPOCHS_PER_CUSTODY_PERIOD) // EPOCHS_PER_CUSTODY_PERIOD
 
 
-def process_custody_game_operations(state: BeaconState, body: BeaconBlockBody) -> None:
-    def for_ops(operations: Sequence[Any], fn: Callable[[BeaconState, Any], None]) -> None:
-        for operation in operations:
-            fn(state, operation)
-
-    for_ops(body.chunk_challenges, process_chunk_challenge)
-    for_ops(body.chunk_challenge_responses, process_chunk_challenge_response)
-    for_ops(body.custody_key_reveals, process_custody_key_reveal)
-    for_ops(body.early_derived_secret_reveals, process_early_derived_secret_reveal)
-    for_ops(body.custody_slashings, process_custody_slashing)
-
-
-# def process_chunk_challenge(state: BeaconState, challenge: CustodyChunkChallenge) -> None:
-#     # Verify the attestation
-#     assert is_valid_indexed_attestation(state, get_indexed_attestation(state, challenge.attestation))
-#     # Verify it is not too late to challenge the attestation
-#     max_attestation_challenge_epoch = Epoch(challenge.attestation.data.target.epoch + MAX_CHUNK_CHALLENGE_DELAY)
-#     assert get_current_epoch(state) <= max_attestation_challenge_epoch
-#     # Verify it is not too late to challenge the responder
-#     responder = state.validators[challenge.responder_index]
-#     if responder.exit_epoch < FAR_FUTURE_EPOCH:
-#         assert get_current_epoch(state) <= responder.exit_epoch + MAX_CHUNK_CHALLENGE_DELAY
-#     # Verify responder is slashable
-#     assert is_slashable_validator(responder, get_current_epoch(state))
-#     # Verify the responder participated in the attestation
-#     attesters = get_attesting_indices(state, challenge.attestation.data, challenge.attestation.aggregation_bits)
-#     assert challenge.responder_index in attesters
-#     # Verify shard transition is correctly given
-#     assert hash_tree_root(challenge.shard_transition) == challenge.attestation.data.shard_transition_root
-#     data_root = challenge.shard_transition.shard_data_roots[challenge.data_index]
-#     # Verify the challenge is not a duplicate
-#     for record in state.custody_chunk_challenge_records:
-#         assert (
-#             record.data_root != data_root or
-#             record.chunk_index != challenge.chunk_index
-#         )
-#     # Verify depth
-#     shard_block_length = challenge.shard_transition.shard_block_lengths[challenge.data_index]
-#     transition_chunks = (shard_block_length + BYTES_PER_CUSTODY_CHUNK - 1) // BYTES_PER_CUSTODY_CHUNK
-#     assert challenge.chunk_index < transition_chunks
-#     # Add new chunk challenge record
-#     new_record = CustodyChunkChallengeRecord(
-#         challenge_index=state.custody_chunk_challenge_index,
-#         challenger_index=get_beacon_proposer_index(state),
-#         responder_index=challenge.responder_index,
-#         inclusion_epoch=get_current_epoch(state),
-#         data_root=challenge.shard_transition.shard_data_roots[challenge.data_index],
-#         chunk_index=challenge.chunk_index,
-#     )
-#     replace_empty_or_append(state.custody_chunk_challenge_records, new_record)
-
-#     state.custody_chunk_challenge_index += 1
-#     # Postpone responder withdrawability
-#     responder.withdrawable_epoch = FAR_FUTURE_EPOCH
-
-
-# def process_chunk_challenge_response(state: BeaconState,
-#                                      response: CustodyChunkResponse) -> None:
-#     # Get matching challenge (if any) from records
-#     matching_challenges = [
-#         record for record in state.custody_chunk_challenge_records
-#         if record.challenge_index == response.challenge_index
-#     ]
-#     assert len(matching_challenges) == 1
-#     challenge = matching_challenges[0]
-#     # Verify chunk index
-#     assert response.chunk_index == challenge.chunk_index
-#     # Verify the chunk matches the crosslink data root
-#     assert is_valid_merkle_branch(
-#         leaf=hash_tree_root(response.chunk),
-#         branch=response.branch,
-#         depth=CUSTODY_RESPONSE_DEPTH + 1,  # Add 1 for the List length mix-in
-#         index=response.chunk_index,
-#         root=challenge.data_root,
-#     )
-#     # Clear the challenge
-#     index_in_records = state.custody_chunk_challenge_records.index(challenge)
-#     state.custody_chunk_challenge_records[index_in_records] = CustodyChunkChallengeRecord()
-#     # Reward the proposer
-#     proposer_index = get_beacon_proposer_index(state)
-#     increase_balance(state, proposer_index, Gwei(get_base_reward(state, proposer_index) // MINOR_REWARD_QUOTIENT))
+# def process_custody_game_operations(state: BeaconState, body: BeaconBlockBody) -> None:
 
 
 def process_custody_key_reveal(state: BeaconState, reveal: CustodyKeyReveal) -> None:

@@ -981,6 +981,9 @@ def honest_bit_challenge(validator, known_items):
         return None
     challengeable_attestations = [att for att in known_items['attestations']
                                   if att.attestor != validator.validator_index]
+    if not challengeable_attestations:
+        return None
+      
     network_attestation = random.choice(challengeable_attestations)
     attestor_index = network_attestation.attestor
     attestation = network_attestation.item 

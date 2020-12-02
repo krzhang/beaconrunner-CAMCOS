@@ -2147,7 +2147,73 @@ def process_chunk_challenge_response(state: BeaconState,
     # Reward the proposer
     proposer_index = get_beacon_proposer_index(state)
     increase_balance(state, proposer_index, Gwei(get_base_reward(state, proposer_index) // MINOR_REWARD_QUOTIENT))
-  
+
+def process_custody_slashing(state: BeaconState, signed_custody_slashing: SignedCustodySlashing) -> None:
+    custody_slashing = signed_custody_slashing.message
+    attestation = custody_slashing.attestation
+
+    # Any signed custody-slashing should result in at least one slashing.
+    # If the custody bits are valid, then the claim itself is slashed.
+    malefactor = state.validators[custody_slashing.malefactor_index]
+    whistleblower = state.validators[custody_slashing.whistleblower_index]
+    domain = get_domain(state, DOMAIN_CUSTODY_BIT_SLASHING, get_current_epoch(state))
+    signing_root = compute_signing_root(custody_slashing, domain)
+    assert bls.Verify(whistleblower.pubkey, signing_root, signed_custody_slashing.signature)
+    # Verify that the whistleblower is slashable
+    assert is_slashable_validator(whistleblower, get_current_epoch(state))
+    # Verify that the claimed malefactor is slashable
+    assert is_slashable_validator(malefactor, get_current_epoch(state))
+
+    # Verify the attestation
+    assert is_valid_indexed_attestation(state, get_indexed_attestation(state, attestation))
+
+    # TODO: can do a single combined merkle proof of data being attested.
+    # Verify the shard transition is indeed attested by the attestation
+    shard_transition = custody_slashing.shard_transition
+    assert hash_tree_root(shard_transition) == attestation.data.shard_transition_root
+    # Verify that the provided data matches the shard-transition
+    assert len(custody_slashing.data) == shard_transition.shard_block_lengths[custody_slashing.data_index]
+    assert hash_tree_root(custody_slashing.data) == shard_transition.shard_data_roots[custody_slashing.data_index]
+    # Verify existence and participation of claimed malefactor
+    attesters = get_attesting_indices(state, attestation.data, attestation.aggregation_bits)
+    assert custody_slashing.malefactor_index in attesters
+
+    # Verify the malefactor custody key
+    epoch_to_sign = get_randao_epoch_for_custody_period(
+        get_custody_period_for_validator(custody_slashing.malefactor_index, attestation.data.target.epoch),
+        custody_slashing.malefactor_index,
+    )
+    domain = get_domain(state, DOMAIN_RANDAO, epoch_to_sign)
+    signing_root = compute_signing_root(epoch_to_sign, domain)
+    assert bls.Verify(malefactor.pubkey, signing_root, custody_slashing.malefactor_secret)
+
+    # Compute the custody bit
+    computed_custody_bit = compute_custody_bit(custody_slashing.malefactor_secret, custody_slashing.data)
+
+    # Verify the claim
+    if computed_custody_bit == 1:
+        # Slash the malefactor, reward the other committee members
+        slash_validator(state, custody_slashing.malefactor_index)
+        committee = get_beacon_committee(state, attestation.data.slot, attestation.data.index)
+        others_count = len(committee) - 1
+        whistleblower_reward = Gwei(malefactor.effective_balance // WHISTLEBLOWER_REWARD_QUOTIENT // others_count)
+        for attester_index in attesters:
+            if attester_index != custody_slashing.malefactor_index:
+                increase_balance(state, attester_index, whistleblower_reward)
+        # No special whisteblower reward: it is expected to be an attester. Others are free to slash too however.
+    else:
+        # The claim was false, the custody bit was correct. Slash the whistleblower that induced this work.
+        slash_validator(state, custody_slashing.whistleblower_index)
+
+# def process_challenge_deadlines(state: BeaconState) -> None:
+    for custody_chunk_challenge in state.custody_chunk_challenge_records:
+        if get_current_epoch(state) > custody_chunk_challenge.inclusion_epoch + EPOCHS_PER_CUSTODY_PERIOD:
+            slash_validator(state, custody_chunk_challenge.responder_index, custody_chunk_challenge.challenger_index)
+            index_in_records = state.custody_chunk_challenge_records.index(custody_chunk_challenge)
+            state.custody_chunk_challenge_records[index_in_records] = CustodyChunkChallengeRecord()
+
+
+
 # Monkey patch hash cache
 _hash = hash
 hash_cache: Dict[bytes, Bytes32] = {}

@@ -1472,8 +1472,8 @@ def process_block(state: BeaconState, block: BeaconBlock) -> None:
     process_block_header(state, block)
     process_randao(state, block.body)
     process_eth1_data(state, block.body)
+    # process_light_client_aggregate(state, block.body)
     process_operations(state, block.body)
-
 
 def process_block_header(state: BeaconState, block: BeaconBlock) -> None:
     # Verify that the slots match
@@ -2296,7 +2296,7 @@ def process_custody_slashing(state: BeaconState, signed_custody_slashing: Signed
         # The claim was false, the custody bit was correct. Slash the whistleblower that induced this work.
         slash_validator(state, custody_slashing.whistleblower_index)
 
-# def process_challenge_deadlines(state: BeaconState) -> None:
+def process_challenge_deadlines(state: BeaconState) -> None:
     for custody_chunk_challenge in state.custody_chunk_challenge_records:
         if get_current_epoch(state) > custody_chunk_challenge.inclusion_epoch + EPOCHS_PER_CUSTODY_PERIOD:
             slash_validator(state, custody_chunk_challenge.responder_index, custody_chunk_challenge.challenger_index)

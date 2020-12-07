@@ -1056,7 +1056,6 @@ def get_beacon_proposer_index(state: BeaconState) -> ValidatorIndex:
     return compute_proposer_index(state, indices, seed)
 
 
-
 def slash_validator(state: BeaconState,
                     slashed_index: ValidatorIndex,
                     whistleblower_index: ValidatorIndex=None) -> None:
@@ -1079,6 +1078,7 @@ def slash_validator(state: BeaconState,
     proposer_reward = Gwei(whistleblower_reward // PROPOSER_REWARD_QUOTIENT)
     increase_balance(state, proposer_index, proposer_reward)
     increase_balance(state, whistleblower_index, Gwei(whistleblower_reward - proposer_reward))
+
 
 
 def initialize_beacon_state_from_eth1(eth1_block_hash: Bytes32,
@@ -1117,30 +1117,6 @@ def initialize_beacon_state_from_eth1(eth1_block_hash: Bytes32,
 
     return state
 
-
-# def is_valid_genesis_state(state: BeaconState) -> bool:
-#     if state.genesis_time < MIN_GENESIS_TIME:
-#         return False
-#     if len(get_active_validator_indices(state, GENESIS_EPOCH)) < MIN_GENESIS_ACTIVE_VALIDATOR_COUNT:
-#         return False
-#     return True
-
-
-# def state_transition(state: BeaconState, signed_block: SignedBeaconBlock, validate_result: bool=True) -> BeaconState:
-#     block = signed_block.message
-#     # Process slots (including those with no blocks) since block
-#     process_slots(state, block.slot)
-#     # Verify signature
-#     if validate_result:
-#         assert verify_block_signature(state, signed_block)
-#     # Process block
-#     process_block(state, block)
-#     # Verify state root
-#     if validate_result:
-#         assert block.state_root == hash_tree_root(state)
-#     # Return post-state
-#     return state
-
 def is_valid_genesis_state(state: BeaconState) -> bool:
     if state.genesis_time < MIN_GENESIS_TIME:
         return False
@@ -1163,44 +1139,6 @@ def state_transition(state: BeaconState, signed_block: SignedBeaconBlock, valida
         assert block.state_root == hash_tree_root(state)
     # Return post-state
     return state
-
-
-
-
-# def verify_block_signature(state: BeaconState, signed_block: SignedBeaconBlock) -> bool:
-#     proposer = state.validators[signed_block.message.proposer_index]
-#     signing_root = compute_signing_root(signed_block.message, get_domain(state, DOMAIN_BEACON_PROPOSER))
-#     return bls.Verify(proposer.pubkey, signing_root, signed_block.signature)
-
-
-# def process_slots(state: BeaconState, slot: Slot) -> None:
-#     assert state.slot < slot
-#     while state.slot < slot:
-#         process_slot(state)
-#         # Process epoch on the start slot of the next epoch
-#         if (state.slot + 1) % SLOTS_PER_EPOCH == 0:
-#             process_epoch(state)
-#         state.slot = Slot(state.slot + 1)
-
-
-# def process_slot(state: BeaconState) -> None:
-#     # Cache state root
-#     previous_state_root = hash_tree_root(state)
-#     state.state_roots[state.slot % SLOTS_PER_HISTORICAL_ROOT] = previous_state_root
-#     # Cache latest block header state root
-#     if state.latest_block_header.state_root == Bytes32():
-#         state.latest_block_header.state_root = previous_state_root
-#     # Cache block root
-#     previous_block_root = hash_tree_root(state.latest_block_header)
-#     state.block_roots[state.slot % SLOTS_PER_HISTORICAL_ROOT] = previous_block_root
-
-
-# def process_epoch(state: BeaconState) -> None:
-#     process_justification_and_finalization(state)
-#     process_rewards_and_penalties(state)
-#     process_registry_updates(state)
-#     process_slashings(state)
-#     process_final_updates(state)
 
 def verify_block_signature(state: BeaconState, signed_block: SignedBeaconBlock) -> bool:
     proposer = state.validators[signed_block.message.proposer_index]

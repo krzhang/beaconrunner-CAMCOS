@@ -41,93 +41,25 @@ fork = 'phase1'
 
 # def get_beacon_proposer_index(state: BeaconState) -> ValidatorIndex:
 
-def slash_validator(state: BeaconState,
-                    slashed_index: ValidatorIndex,
-                    whistleblower_index: ValidatorIndex=None) -> None:
-    """
-    Slash the validator with index ``slashed_index``.
-    """
-    epoch = get_current_epoch(state)
-    initiate_validator_exit(state, slashed_index)
-    validator = state.validators[slashed_index]
-    validator.slashed = True
-    validator.withdrawable_epoch = max(validator.withdrawable_epoch, Epoch(epoch + EPOCHS_PER_SLASHINGS_VECTOR))
-    state.slashings[epoch % EPOCHS_PER_SLASHINGS_VECTOR] += validator.effective_balance
-    decrease_balance(state, slashed_index, validator.effective_balance // MIN_SLASHING_PENALTY_QUOTIENT)
+# def slash_validator(state: BeaconState,
+#                     slashed_index: ValidatorIndex,
+#                     whistleblower_index: ValidatorIndex=None) -> None:
 
-    # Apply proposer and whistleblower rewards
-    proposer_index = get_beacon_proposer_index(state)
-    if whistleblower_index is None:
-        whistleblower_index = proposer_index
-    whistleblower_reward = Gwei(validator.effective_balance // WHISTLEBLOWER_REWARD_QUOTIENT)
-    proposer_reward = Gwei(whistleblower_reward // PROPOSER_REWARD_QUOTIENT)
-    increase_balance(state, proposer_index, proposer_reward)
-    increase_balance(state, whistleblower_index, Gwei(whistleblower_reward - proposer_reward))
+# def is_valid_genesis_state(state: BeaconState) -> bool:
+#     if state.genesis_time < MIN_GENESIS_TIME:
+
+# def state_transition(state: BeaconState, signed_block: SignedBeaconBlock, validate_result: bool=True) -> BeaconState:
 
 
+# def verify_block_signature(state: BeaconState, signed_block: SignedBeaconBlock) -> bool:
 
 
-def is_valid_genesis_state(state: BeaconState) -> bool:
-    if state.genesis_time < MIN_GENESIS_TIME:
-        return False
-    if len(get_active_validator_indices(state, GENESIS_EPOCH)) < MIN_GENESIS_ACTIVE_VALIDATOR_COUNT:
-        return False
-    return True
+# def process_slots(state: BeaconState, slot: Slot) -> None:
+
+# def process_slot(state: BeaconState) -> None:
 
 
-def state_transition(state: BeaconState, signed_block: SignedBeaconBlock, validate_result: bool=True) -> BeaconState:
-    block = signed_block.message
-    # Process slots (including those with no blocks) since block
-    process_slots(state, block.slot)
-    # Verify signature
-    if validate_result:
-        assert verify_block_signature(state, signed_block)
-    # Process block
-    process_block(state, block)
-    # Verify state root
-    if validate_result:
-        assert block.state_root == hash_tree_root(state)
-    # Return post-state
-    return state
-
-
-def verify_block_signature(state: BeaconState, signed_block: SignedBeaconBlock) -> bool:
-    proposer = state.validators[signed_block.message.proposer_index]
-    signing_root = compute_signing_root(signed_block.message, get_domain(state, DOMAIN_BEACON_PROPOSER))
-    return bls.Verify(proposer.pubkey, signing_root, signed_block.signature)
-
-
-def process_slots(state: BeaconState, slot: Slot) -> None:
-    assert state.slot < slot
-    while state.slot < slot:
-        process_slot(state)
-        # Process epoch on the start slot of the next epoch
-        if (state.slot + 1) % SLOTS_PER_EPOCH == 0:
-            process_epoch(state)
-        state.slot = Slot(state.slot + 1)
-
-
-def process_slot(state: BeaconState) -> None:
-    # Cache state root
-    previous_state_root = hash_tree_root(state)
-    state.state_roots[state.slot % SLOTS_PER_HISTORICAL_ROOT] = previous_state_root
-    # Cache latest block header state root
-    if state.latest_block_header.state_root == Bytes32():
-        state.latest_block_header.state_root = previous_state_root
-    # Cache block root
-    previous_block_root = hash_tree_root(state.latest_block_header)
-    state.block_roots[state.slot % SLOTS_PER_HISTORICAL_ROOT] = previous_block_root
-
-
-def process_epoch(state: BeaconState) -> None:
-    process_justification_and_finalization(state)
-    process_rewards_and_penalties(state)
-    process_registry_updates(state)
-    process_reveal_deadlines(state)
-    process_challenge_deadlines(state)
-    process_slashings(state)
-    process_final_updates(state)  # phase 0 final updates
-    process_phase_1_final_updates(state)
+# def process_epoch(state: BeaconState) -> None:
 
 
 def get_matching_source_attestations(state: BeaconState, epoch: Epoch) -> Sequence[PendingAttestation]:

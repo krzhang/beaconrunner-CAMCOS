@@ -1178,7 +1178,6 @@ def process_epoch(state: BeaconState) -> None:
     process_final_updates(state)  # phase 0 final updates
     # process_phase_1_final_updates(state)
 
-    
 def get_matching_source_attestations(state: BeaconState, epoch: Epoch) -> Sequence[PendingAttestation]:
     assert epoch in (get_previous_epoch(state), get_current_epoch(state))
     return state.current_epoch_attestations if epoch == get_current_epoch(state) else state.previous_epoch_attestations
@@ -1205,7 +1204,7 @@ def get_unslashed_attesting_indices(state: BeaconState,
         output = output.union(get_attesting_indices(state, a.data, a.aggregation_bits))
     return set(filter(lambda index: not state.validators[index].slashed, output))
 
-
+  
 def get_attesting_balance(state: BeaconState, attestations: Sequence[PendingAttestation]) -> Gwei:
     """
     Return the combined effective balance of the set of unslashed validators participating in ``attestations``.

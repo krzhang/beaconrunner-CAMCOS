@@ -1004,10 +1004,26 @@ def validator_maker(num_validators,
                     chunk_response_funcs,
                     bit_challenge_funcs):
     """ 
-    make validators out of types that are crossed in the ratios of the funcs that make up
-    their responses.
+    make validators out of types that are constructed from the strategies given in terms of 
+    "[X]_funcs".
 
-    validator_behavior is a collection
+    [X]_funcs: lists of strategy functions (all of type "State -> Any") that tells the validator
+               what to produce when queried for a [X]
+
+    Ex. Suppose Attest_funcs = [attest_strategy_1, attest_strategy_2] and
+                bit_challenge_funcs = [bcs_1, bcs_2, bcs_3], and
+                the other funcs have just one function each
+
+        then the space of validators will be "crossed" into 2x3*1*1 = 6 options from all the ways
+        of combining the functions. Then we will take the proposed number of validators, find the
+        largest multiple of 6 under it (num_validators), and split them into 6 equal buckets to
+        create validators of each Cartesian producted type from the 4 types of functions.
+
+    TODO: eventually, should replace each [X]_funcs by a dictionary of weights, to allow different
+          weightings of validators
+
+    TODO: eventually, should allow situations where the distributions are not 'factored', such
+          as just taking a list of 4-tuples and their respective weights. 
     """
     validators = []
     

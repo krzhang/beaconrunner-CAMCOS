@@ -595,7 +595,7 @@ class BRValidator:
             # if the block chunk challenges you, you put it in your active challenges
             for cha in item.message.body.chunk_challenges:
                 if cha.responder_index == self.validator_index:
-                    print(self.validator_index, "feels accused")
+                    print(self.validator_index, "is accused")
                     self.chunk_challenges_accusations.append((cha, None))
         except AssertionError as e:
             return False

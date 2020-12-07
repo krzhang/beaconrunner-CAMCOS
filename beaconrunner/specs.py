@@ -2163,7 +2163,7 @@ def process_custody_game_operations(state: BeaconState, body: BeaconBlockBody) -
 
     # commenting out things we don't need to use
     for_ops(body.chunk_challenges, process_chunk_challenge)
-    # for_ops(body.chunk_challenge_responses, process_chunk_challenge_response)
+    for_ops(body.chunk_challenge_responses, process_chunk_challenge_response)
     # for_ops(body.custody_key_reveals, process_custody_key_reveal)
     # for_ops(body.early_derived_secret_reveals, process_early_derived_secret_reveal)
     # for_ops(body.custody_slashings, process_custody_slashing)
@@ -2225,21 +2225,25 @@ def process_chunk_challenge_response(state: BeaconState,
     ]
     assert len(matching_challenges) == 1
     challenge = matching_challenges[0]
-    # Verify chunk index
-    assert response.chunk_index == challenge.chunk_index
-    # Verify the chunk matches the crosslink data root
-    assert is_valid_merkle_branch(
-        leaf=hash_tree_root(response.chunk),
-        branch=response.branch,
-        depth=CUSTODY_RESPONSE_DEPTH + 1,  # Add 1 for the List length mix-in
-        index=response.chunk_index,
-        root=challenge.data_root,
-    )
+    
+    # # Verify chunk index
+    # assert response.chunk_index == challenge.chunk_index
+    
+    # # Verify the chunk matches the crosslink data root
+    # assert is_valid_merkle_branch(
+    #     leaf=hash_tree_root(response.chunk),
+    #     branch=response.branch,
+    #     depth=CUSTODY_RESPONSE_DEPTH + 1,  # Add 1 for the List length mix-in
+    #     index=response.chunk_index,
+    #     root=challenge.data_root,
+    # )
+    
     # Clear the challenge
     index_in_records = state.custody_chunk_challenge_records.index(challenge)
     state.custody_chunk_challenge_records[index_in_records] = CustodyChunkChallengeRecord()
     # Reward the proposer
     proposer_index = get_beacon_proposer_index(state)
+    print("Validator ", challenge.responder_index, "succeeds; Validator", challenge.challenger_index, "is rewarded.")
     increase_balance(state, proposer_index, Gwei(get_base_reward(state, proposer_index) // MINOR_REWARD_QUOTIENT))
 
 def process_custody_slashing(state: BeaconState, signed_custody_slashing: SignedCustodySlashing) -> None:

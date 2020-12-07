@@ -212,6 +212,7 @@ MAX_CUSTODY_CHUNK_CHALLENGE_RESPONSES = uint64(2**4)
 MAX_CUSTODY_SLASHINGS = uint64(2**0)
 EARLY_DERIVED_SECRET_REVEAL_SLOT_REWARD_MULTIPLE = uint64(2**1)
 MINOR_REWARD_QUOTIENT = uint64(2**8)
+bit_challenge_record = []
 
 apply_constants_config(globals())
 

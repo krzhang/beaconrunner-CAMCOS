@@ -9,7 +9,7 @@ from .specs import (
     Slot, Root, Epoch, CommitteeIndex, ValidatorIndex, Store,
     BeaconState, BeaconBlock, BeaconBlockBody, SignedBeaconBlock,
     Attestation, AttestationData, Checkpoint, BLSSignature,
-    CustodyChunkChallenge, CustodyChunkResponse, CustodySlashing,
+    CustodyChunkChallenge, CustodyChunkResponse, CustodySlashing, bit_challenge_record, MAX_CUSTODY_SLASHINGS,
     MAX_VALIDATORS_PER_COMMITTEE, VALIDATOR_REGISTRY_LIMIT,
     SLOTS_PER_EPOCH, DOMAIN_RANDAO, DOMAIN_BEACON_PROPOSER,
     DOMAIN_BEACON_ATTESTER, MAX_CUSTODY_CHUNK_CHALLENGES, SECONDS_PER_SLOT, 
@@ -920,6 +920,20 @@ def honest_propose_base(validator, known_items):
         chunk_challenges.append(cha)
         print("  ", validator.validator_index, "challenging", attestor_index)
 
+
+    #Publishing Bit Challenges
+    #bit_challenges_accepted: List[CustodySlashing, MAX_CUSTODY_SLASHINGS]
+    bit_challenges_accepted = []
+    for bit_cha in bit_challenge_record:
+        if not bit_challenges_accepted:
+            bit_challenges_accepted.append(bit_cha)
+            print(bit_cha.whistleblower_index, "'s bit challenge to", bit_cha.malefactor_index, "got accepted")
+
+        if bit_cha.malefactor_index not in [x.malefactor_index for x in bit_challenges_accepted]:
+            bit_challenges_accepted.append(bit_cha)
+            print(bit_cha.whistleblower_index, "'s bit challenge to", bit_cha.malefactor_index, "got accepted")
+
+
     beacon_block_body = BeaconBlockBody(
         attestations=attestations,
         chunk_challenges=chunk_challenges,
@@ -995,6 +1009,7 @@ def honest_bit_challenge(validator, known_items):
         malefactor_index = attestor_index,
         whistleblower_index = validator.validator_index
     )
+    bit_challenge_record.append(bit_challenge)
     # print("  ", validator.validator_index, " bit challenging", attestor_index)
     return bit_challenge
 

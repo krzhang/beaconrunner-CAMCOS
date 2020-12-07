@@ -596,7 +596,7 @@ class BRValidator:
             for cha in item.message.body.chunk_challenges:
                 if cha.responder_index == self.validator_index:
                     print(self.validator_index, "is accused")
-                    self.chunk_challenges_accusations.append((cha, None))
+                    self.chunk_challenges_accusations.append(cha)
         except AssertionError as e:
             return False
 
@@ -967,7 +967,9 @@ def honest_propose(validator, known_items):
 def honest_chunk_challenge_response(validator, known_items):
     if validator.chunk_challenges_accusations: # has outstanding accusation
         cha = validator.chunk_challenges_accusations[-1]
-        response = CustodyChunkResponse()
+        response = CustodyChunkResponse(
+#          challenge_index = cha.challenge_index
+        )
         validator.chunk_challenges_accusations = validator.chunk_challenges_accusations[:-1]
 #        validator.chunk_challenge_sent.append(response)
         print(validator.validator_index, "responds to challenge")
@@ -993,7 +995,7 @@ def honest_bit_challenge(validator, known_items):
         malefactor_index = attestor_index,
         whistleblower_index = validator.validator_index
     )
-    print("  ", validator.validator_index, " bit challenging", attestor_index)
+    # print("  ", validator.validator_index, " bit challenging", attestor_index)
     return bit_challenge
 
 ## Validator makers

@@ -1565,7 +1565,7 @@ def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
 
     # See custody game spec.
     # put back in later
-    # process_custody_game_operations(state, body)
+    process_custody_game_operations(state, body)
 
     # put back in later
     # process_shard_transitions(state, body.shard_transitions, body.attestations)
@@ -2162,7 +2162,7 @@ def process_custody_game_operations(state: BeaconState, body: BeaconBlockBody) -
             fn(state, operation)
 
     # commenting out things we don't need to use
-    # for_ops(body.chunk_challenges, process_chunk_challenge)
+    for_ops(body.chunk_challenges, process_chunk_challenge)
     # for_ops(body.chunk_challenge_responses, process_chunk_challenge_response)
     # for_ops(body.custody_key_reveals, process_custody_key_reveal)
     # for_ops(body.early_derived_secret_reveals, process_early_derived_secret_reveal)
@@ -2183,27 +2183,31 @@ def process_chunk_challenge(state: BeaconState, challenge: CustodyChunkChallenge
     # Verify the responder participated in the attestation
     attesters = get_attesting_indices(state, challenge.attestation.data, challenge.attestation.aggregation_bits)
     assert challenge.responder_index in attesters
-    # Verify shard transition is correctly given
-    assert hash_tree_root(challenge.shard_transition) == challenge.attestation.data.shard_transition_root
-    data_root = challenge.shard_transition.shard_data_roots[challenge.data_index]
-    # Verify the challenge is not a duplicate
-    for record in state.custody_chunk_challenge_records:
-        assert (
-            record.data_root != data_root or
-            record.chunk_index != challenge.chunk_index
-        )
-    # Verify depth
-    shard_block_length = challenge.shard_transition.shard_block_lengths[challenge.data_index]
-    transition_chunks = (shard_block_length + BYTES_PER_CUSTODY_CHUNK - 1) // BYTES_PER_CUSTODY_CHUNK
-    assert challenge.chunk_index < transition_chunks
+    
+    # # Verify shard transition is correctly given
+    # assert hash_tree_root(challenge.shard_transition) == challenge.attestation.data.shard_transition_root
+    # data_root = challenge.shard_transition.shard_data_roots[challenge.data_index]
+    
+    # # Verify the challenge is not a duplicate
+    # for record in state.custody_chunk_challenge_records:
+    #     assert (
+    #         record.data_root != data_root or
+    #         record.chunk_index != challenge.chunk_index
+    #     )
+
+    # # Verify depth
+    # shard_block_length = challenge.shard_transition.shard_block_lengths[challenge.data_index]
+    # transition_chunks = (shard_block_length + BYTES_PER_CUSTODY_CHUNK - 1) // BYTES_PER_CUSTODY_CHUNK
+    # assert challenge.chunk_index < transition_chunks
+
     # Add new chunk challenge record
     new_record = CustodyChunkChallengeRecord(
         challenge_index=state.custody_chunk_challenge_index,
         challenger_index=get_beacon_proposer_index(state),
         responder_index=challenge.responder_index,
         inclusion_epoch=get_current_epoch(state),
-        data_root=challenge.shard_transition.shard_data_roots[challenge.data_index],
-        chunk_index=challenge.chunk_index,
+        # data_root=challenge.shard_transition.shard_data_roots[challenge.data_index],
+        # chunk_index=challenge.chunk_index,
     )
     replace_empty_or_append(state.custody_chunk_challenge_records, new_record)
 

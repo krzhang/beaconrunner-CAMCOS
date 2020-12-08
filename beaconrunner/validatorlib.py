@@ -599,13 +599,9 @@ class BRValidator:
             new_chunk_challenges = state.custody_chunk_challenge_records[chunk_challenge_count:]
             for cha in new_chunk_challenges:
                 if cha.responder_index == self.validator_index:
-                    print(self.validator_index, "is accused")
+#                    print(self.validator_index, "is accused")
                     self.chunk_challenges_accusations.append(cha)
 
-            # for cha in item.message.body.chunk_challenges:
-            #     if cha.responder_index == self.validator_index:
-            #         print(self.validator_index, "is accused")
-            #         self.chunk_challenges_accusations.append(cha)
         except AssertionError as e:
             return False
 
@@ -884,13 +880,13 @@ def should_process_attestation(state: BeaconState, attestation: Attestation) -> 
         return False
 
 def should_process_response(state: BeaconState, response: CustodyChunkResponse) -> bool:
-    try:
-        process_chunk_challenge_response(state.copy(), attestation)
+    matching_challenges = [
+        record for record in state.custody_chunk_challenge_records
+        if record.challenge_index == response.challenge_index]
+    if matching_challenges:
         return True
-    except:
-        return False
+    return False
 
-      
 def honest_propose_base(validator, known_items):
     """
     Returns an honest block, using the current LMD-GHOST head and all known, aggregated, 
@@ -944,8 +940,8 @@ def honest_propose_base(validator, known_items):
 
 
     # publishing chunk challenge responses
-
-    chunk_responses = [att.item for att in known_items["chunk_responses"] if should_process_response(processed_state, att.item)]
+    chunk_responses = [att.item for att in known_items["chunk_responses"]
+                       if should_process_response(processed_state, att.item)]
  
     #Publishing Bit Challenges
     #bit_challenges_accepted: List[CustodySlashing, MAX_CUSTODY_SLASHINGS]

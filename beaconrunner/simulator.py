@@ -19,6 +19,7 @@ from .network import (
     update_network,
     disseminate_attestations,
     disseminate_block,
+    disseminate_chunk_responses,
     knowledge_set,
 )
 
@@ -110,7 +111,7 @@ def update_chunk_responses(_params, step, sL, s, _input):
     # Get the blocks proposed and disseminate them on-the-wire
 
     network = s["network"]
-    # disseminate_chunk_responses(network, _input["chunk_responses"])
+    disseminate_chunk_responses(network, _input["chunk_responses"])
 
     return ('network', network)
 
@@ -158,7 +159,7 @@ def propose_policy(_params, step, sL, s):
 
 def chunk_response_policy(_params, step, sL, s):
 
-    # Pinging validators to check if anyone wants to response to a chunk challenge.
+    # Pinging validators to check if anyone wants to respond to a chunk challenge.
 
     network = s['network']
     responses = []
@@ -167,7 +168,7 @@ def chunk_response_policy(_params, step, sL, s):
         known_items = knowledge_set(network, validator_index)
         chunk_response = validator.chunk_response(validator, known_items)
         if chunk_response is not None:
-            responses.append(chunk_response)
+            responses.append([validator_index, chunk_response])
 
     return ({ 'chunk_responses': responses })
 

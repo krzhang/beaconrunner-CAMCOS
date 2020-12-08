@@ -33,6 +33,12 @@ class NetworkBlock(object):
     info_sets: List[NetworkSetIndex, VALIDATOR_REGISTRY_LIMIT]
 
 @dataclass
+class NetworkChunkResponse(object):
+    responder: ValidatorIndex
+    item: CustodyChunkResponse
+    info_sets: List[NetworkSetIndex, VALIDATOR_REGISTRY_LIMIT]
+
+@dataclass
 class Network(object):
     validators: List[BRValidator, VALIDATOR_REGISTRY_LIMIT]
     sets: List[NetworkSet, VALIDATOR_REGISTRY_LIMIT]
@@ -41,7 +47,8 @@ class Network(object):
     # This was unwieldy. We can extend this easily by adding `Attester/ProposerSlashing`s
     attestations: List[NetworkAttestation, VALIDATOR_REGISTRY_LIMIT] = field(default_factory=list)
     blocks: List[NetworkBlock, VALIDATOR_REGISTRY_LIMIT] = field(default_factory=list)
-
+    chunk_responses: List[NetworkChunkResponse, VALIDATOR_REGISTRY_LIMIT] = field(default_factory=list)
+    
     # We have the possibility of malicious validators refusing to propagate messages.
     # Unused so far and untested too.
     malicious: List[ValidatorIndex, VALIDATOR_REGISTRY_LIMIT] = field(default_factory=list)
@@ -60,7 +67,10 @@ def knowledge_set(network: Network, validator_index: ValidatorIndex) -> Dict[str
     info_sets = set(get_all_sets_for_validator(network, validator_index))
     known_attestations = [item for item in network.attestations if len(set(item.info_sets) & info_sets) > 0]
     known_blocks = [item for item in network.blocks if len(set(item.info_sets) & info_sets) > 0]
-    return { "attestations": known_attestations, "blocks": known_blocks }
+    known_chunk_responses = [item for item in network.chunk_responses if len(set(item.info_sets) &
+                                                                             info_sets) > 0]
+    return { "attestations": known_attestations, "blocks": known_blocks,
+             "chunk_responses": known_chunk_responses}
 
 def ask_to_check_backlog(network: Network,
                          validator_indices: Set[ValidatorIndex]) -> None:
@@ -130,7 +140,27 @@ def disseminate_attestations(network: Network,
     ask_to_check_backlog(network, broadcast_validators)
 
 def disseminate_chunk_responses(network: Network, items: Sequence[Tuple[ValidatorIndex, CustodyChunkResponse]]) -> None:
-    pass 
+    # Finding out who receives a new response
+    broadcast_validators = set()
+    for item in items:
+        sender = item[0]
+        response = item[1]
+        broadcast_list = get_all_sets_for_validator(network, sender)
+
+        # The sender records that they have sent an attestation
+        network.validators[sender].log_chunk_response(response)
+
+        # Adding the attestation to network items
+        networkItem = NetworkChunkResponse(responder=sender,
+                                           item=response,
+                                           info_sets=broadcast_list)
+        network.chunk_responses.append(networkItem)
+
+        # Update list of validators who received a new item
+        for info_set_index in broadcast_list:
+            broadcast_validators |= set(network.sets[info_set_index].validators)
+
+    ask_to_check_backlog(network, broadcast_validators)
     
 def update_network(network: Network) -> None:
     """

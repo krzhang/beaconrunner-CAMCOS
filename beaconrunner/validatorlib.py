@@ -17,6 +17,7 @@ from .specs import (
     get_head, process_slots, on_tick, get_current_epoch,
     get_committee_assignment, compute_start_slot_at_epoch,
     get_block_root, process_block, process_attestation,
+    process_chunk_challenge_response,
     get_block_root_at_slot, get_beacon_proposer_index,
     get_domain, compute_signing_root, state_transition,
     on_block, on_attestation,
@@ -566,7 +567,7 @@ class BRValidator:
         
     def log_chunk_response(self, item: CustodyChunkResponse) -> None:
         """
-        Recording 'attestation proposal' move by the validator in its history.
+        Recording 'chunk response' move by the validator in its history.
         """
 
         self.history.append(ValidatorMove(
@@ -591,12 +592,20 @@ class BRValidator:
         # - The block parent is not known
         try:
             state = self.process_to_slot(item.message.parent_root, item.message.slot)
+            chunk_challenge_count = state.custody_chunk_challenge_index
             on_block(self.store, item, state = state)
             # if the block chunk challenges you, you put it in your active challenges
-            for cha in item.message.body.chunk_challenges:
+            new_chunk_challenge_count = state.custody_chunk_challenge_index
+            new_chunk_challenges = state.custody_chunk_challenge_records[chunk_challenge_count:]
+            for cha in new_chunk_challenges:
                 if cha.responder_index == self.validator_index:
                     print(self.validator_index, "is accused")
                     self.chunk_challenges_accusations.append(cha)
+
+            # for cha in item.message.body.chunk_challenges:
+            #     if cha.responder_index == self.validator_index:
+            #         print(self.validator_index, "is accused")
+            #         self.chunk_challenges_accusations.append(cha)
         except AssertionError as e:
             return False
 
@@ -628,7 +637,8 @@ class BRValidator:
             return True
         except:
             return False
-
+          
+          
     def check_backlog(self, known_items: Dict[str, Sequence[Container]]) -> None:
         """
         Called whenever a new event happens on the network that might make a validator update
@@ -649,8 +659,9 @@ class BRValidator:
             if recorded:
                 recorded_attestations += 1
 
+                
         # If we do record anything, update the internals.
-        if recorded_blocks > 0 or recorded_attestations > 0:
+        if (recorded_blocks + recorded_attestations) > 0:
             self.update_data()
 
 def lowest_common_ancestor(store, old_head, new_head) -> Optional[BeaconBlock]:
@@ -872,6 +883,14 @@ def should_process_attestation(state: BeaconState, attestation: Attestation) -> 
     except:
         return False
 
+def should_process_response(state: BeaconState, response: CustodyChunkResponse) -> bool:
+    try:
+        process_chunk_challenge_response(state.copy(), attestation)
+        return True
+    except:
+        return False
+
+      
 def honest_propose_base(validator, known_items):
     """
     Returns an honest block, using the current LMD-GHOST head and all known, aggregated, 
@@ -904,6 +923,7 @@ def honest_propose_base(validator, known_items):
         proposer_index = validator.validator_index,
     )
 
+    # publishing chunk challenges
     chunk_challenges = []
     challengeable_attestations = [att for att in known_items['attestations']
                                   if att.attestor != validator.validator_index]
@@ -923,22 +943,27 @@ def honest_propose_base(validator, known_items):
         print("  ", validator.validator_index, "challenging", attestor_index)
 
 
+    # publishing chunk challenge responses
+
+    chunk_responses = [att.item for att in known_items["chunk_responses"] if should_process_response(processed_state, att.item)]
+ 
     #Publishing Bit Challenges
     #bit_challenges_accepted: List[CustodySlashing, MAX_CUSTODY_SLASHINGS]
     bit_challenges_accepted = []
     for bit_cha in bit_challenge_record:
         if not bit_challenges_accepted:
             bit_challenges_accepted.append(bit_cha)
-            print(bit_cha.whistleblower_index, "'s bit challenge to", bit_cha.malefactor_index, "got accepted")
+#            print(bit_cha.whistleblower_index, "'s bit challenge to", bit_cha.malefactor_index, "got accepted")
 
         if bit_cha.malefactor_index not in [x.malefactor_index for x in bit_challenges_accepted]:
             bit_challenges_accepted.append(bit_cha)
-            print(bit_cha.whistleblower_index, "'s bit challenge to", bit_cha.malefactor_index, "got accepted")
+#            print(bit_cha.whistleblower_index, "'s bit challenge to", bit_cha.malefactor_index, "got accepted")
 
 
     beacon_block_body = BeaconBlockBody(
         attestations=attestations,
         chunk_challenges=chunk_challenges,
+        chunk_challenge_responses=chunk_responses
     )
     epoch_signature = get_epoch_signature(processed_state, beacon_block, validator.privkey)
     beacon_block_body.randao_reveal = epoch_signature
@@ -982,16 +1007,15 @@ def honest_propose(validator, known_items):
 
 def honest_chunk_challenge_response(validator, known_items):
     if validator.chunk_challenges_accusations: # has outstanding accusation
-        cha = validator.chunk_challenges_accusations[-1]
+        record = validator.chunk_challenges_accusations[-1]
         response = CustodyChunkResponse(
-#          challenge_index = cha.challenge_index
+          challenge_index = record.challenge_index
         )
         validator.chunk_challenges_accusations = validator.chunk_challenges_accusations[:-1]
 #        validator.chunk_challenge_sent.append(response)
         print(validator.validator_index, "responds to challenge")
         return response
     return None
-
 
 def lazy_chunk_challenge_response(validator, known_items):
     return None

@@ -47,12 +47,15 @@ class Network(object):
     malicious: List[ValidatorIndex, VALIDATOR_REGISTRY_LIMIT] = field(default_factory=list)
 
 def get_all_sets_for_validator(network: Network, validator_index: ValidatorIndex) -> Sequence[NetworkSetIndex]:
-    # Return indices of sets to which the validator belongs
-
+    """ Return indices of network sets to which the validator belongs """
     return [i for i, s in enumerate(network.sets) if validator_index in s.validators]
 
 def knowledge_set(network: Network, validator_index: ValidatorIndex) -> Dict[str, Sequence[Container]]:
-    # Known attestations and blocks of validator `validator_index`
+    """
+    Known attestations and blocks of validator `validator_index`
+
+    In general, the information a validator uses to make actions (attesting, proposing, etc.)
+    """
 
     info_sets = set(get_all_sets_for_validator(network, validator_index))
     known_attestations = [item for item in network.attestations if len(set(item.info_sets) & info_sets) > 0]
@@ -75,8 +78,12 @@ def disseminate_block(network: Network,
                       sender: ValidatorIndex,
                       item: SignedBeaconBlock,
                       to_sets: List[NetworkSetIndex, VALIDATOR_REGISTRY_LIMIT] = None) -> None:
-    # `sender` disseminates a block to its information sets, i.e., other validators they are peering
-    # with.
+    """
+    Disseminate a block through the network.
+
+    `sender` disseminates a block to its information sets, i.e., other validators they are peering
+    with.
+    """
 
     # Getting all the sets that `sender` belongs to
     broadcast_list = get_all_sets_for_validator(network, sender) if to_sets is None else to_sets
@@ -97,8 +104,9 @@ def disseminate_block(network: Network,
 
 def disseminate_attestations(network: Network,
                              items: Sequence[Tuple[ValidatorIndex, Attestation]]) -> None:
-    # We get a set of attestations and disseminate them over the network
-
+    """
+    We get a set of attestations and disseminate them over the network
+    """
     # Finding out who receives a new attestation
     broadcast_validators = set()
     for item in items:
@@ -125,7 +133,9 @@ def disseminate_chunk_responses(network: Network, items: Sequence[Tuple[Validato
     pass 
     
 def update_network(network: Network) -> None:
-    # The "heartbeat" of the network. When called, items propagate one step further on the network.
+    """
+    The "heartbeat" of the network. When called, items propagate one step further on the network.
+    """
 
     # We need to propagate both blocks and attestations
     item_sets = [network.blocks, network.attestations]

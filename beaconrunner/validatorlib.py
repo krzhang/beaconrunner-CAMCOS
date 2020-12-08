@@ -874,9 +874,11 @@ def should_process_attestation(state: BeaconState, attestation: Attestation) -> 
 
 def honest_propose_base(validator, known_items):
     """
-    Returns an honest block, using the current LMD-GHOST head and all known, aggregated, attestations.
+    Returns an honest block, using the current LMD-GHOST head and all known, aggregated, 
+    attestations.
 
-    Again, a "base" function since it does not do timing checks, rule checks, etc.
+    This is a "base" function since it does not do timing checks, rule checks, etc.; for 
+    actual validators you probably want a function that uses this as a subroutine
 
     Args:
         validator (BRValidator): The proposing validator
@@ -977,6 +979,9 @@ def honest_chunk_challenge_response(validator, known_items):
     return None
 
 
+def lazy_chunk_challenge_response(validator, known_items):
+    return None
+  
 def honest_bit_challenge(validator, known_items):
     
     if not known_items['attestations']:
@@ -998,6 +1003,10 @@ def honest_bit_challenge(validator, known_items):
     # print("  ", validator.validator_index, " bit challenging", attestor_index)
     return bit_challenge
 
+def lazy_bit_challenge(validator, known_items):
+    return None
+
+  
 ## Validator makers
 
 def validator_maker(num_validators,

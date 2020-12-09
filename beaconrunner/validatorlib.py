@@ -951,23 +951,16 @@ def honest_propose_base(validator, known_items):
     #   print ("    ", r)
     
     #Publishing Bit Challenges
-    #bit_challenges_accepted: List[CustodySlashing, MAX_CUSTODY_SLASHINGS]
-    bit_challenges_accepted = []
-    for bit_cha in bit_challenge_record:
-
-        if not bit_challenges_accepted:
-            bit_challenges_accepted.append(bit_cha)
-#            print(bit_cha.whistleblower_index, "'s bit challenge to", bit_cha.malefactor_index, "got accepted")
-
-        if bit_cha.malefactor_index not in [x.malefactor_index for x in bit_challenges_accepted]:
-            bit_challenges_accepted.append(bit_cha)
-#            print(bit_cha.whistleblower_index, "'s bit challenge to", bit_cha.malefactor_index, "got accepted")
-
+    if not bit_challenge_record:
+        return None
+    bit_challenge_accepted = random.choice(bit_challenge_record)
+    print(bit_challenge_accepted.whistleblower_index, "'s bit challenge to", bit_challenge_accepted.malefactor_index,"got accepted")
 
     beacon_block_body = BeaconBlockBody(
         attestations=attestations,
         chunk_challenges=chunk_challenges,
-        chunk_challenge_responses=chunk_responses
+        chunk_challenge_responses=chunk_responses,
+        custody_slashings=bit_challenge_accepted
     )
     epoch_signature = get_epoch_signature(processed_state, beacon_block, validator.privkey)
     beacon_block_body.randao_reveal = epoch_signature

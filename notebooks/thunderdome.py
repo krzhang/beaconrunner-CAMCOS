@@ -111,7 +111,8 @@ set_a = br.network.NetworkSet(validators=list(range(0, int(num_validators * 2 / 
 set_b = br.network.NetworkSet(validators=list(range(int(num_validators / 2.0), num_validators)))
 network_sets = list([set_a, set_b])
 
-num_runs = 40
+num_runs = 1
+# num_runs = 40
 network_update_rate = 0.25
 
 print ("simulation ready!")

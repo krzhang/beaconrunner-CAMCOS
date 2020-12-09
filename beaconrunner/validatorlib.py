@@ -882,7 +882,7 @@ def should_process_attestation(state: BeaconState, attestation: Attestation) -> 
 def should_process_response(state: BeaconState, response: CustodyChunkResponse) -> bool:
     matching_challenges = [
         record for record in state.custody_chunk_challenge_records
-        if record.challenge_index == response.challenge_index]
+        if (record.challenge_index == response.challenge_index and record.chunk_index == response.chunk_index)]
     if matching_challenges:
         return True
     return False
@@ -930,23 +930,31 @@ def honest_propose_base(validator, known_items):
     for i in range(num_to_challenge):
         attestor_index = network_attestations[i].attestor
         attestation = network_attestations[i].item
+        chunk_index = random.randint(1, 4294967296)
+        # data_index and chunk_index have real values, but we can ignore for simulations
         cha = CustodyChunkChallenge(
             responder_index=attestor_index,
             attestation=attestation,
-            # data_index and chunk_index have real values, but we can ignore for simulations
+            chunk_index=chunk_index
         )
         chunk_challenges.append(cha)
-        print("  ", validator.validator_index, "challenging", attestor_index)
 
+    challenged = " ".join(["%d [%d]" % (cha.responder_index, cha.chunk_index) for cha in chunk_challenges])
+    print("  %d chunk challenges" % (validator.validator_index), challenged)
 
     # publishing chunk challenge responses
     chunk_responses = [att.item for att in known_items["chunk_responses"]
                        if should_process_response(processed_state, att.item)]
- 
+
+    # for r in chunk_responses:
+    #   print ("  Validator", validator.validator_index, "considering response", r.challenge_index)
+    #   print ("    ", r)
+    
     #Publishing Bit Challenges
     #bit_challenges_accepted: List[CustodySlashing, MAX_CUSTODY_SLASHINGS]
     bit_challenges_accepted = []
     for bit_cha in bit_challenge_record:
+
         if not bit_challenges_accepted:
             bit_challenges_accepted.append(bit_cha)
 #            print(bit_cha.whistleblower_index, "'s bit challenge to", bit_cha.malefactor_index, "got accepted")
@@ -966,6 +974,9 @@ def honest_propose_base(validator, known_items):
 
     beacon_block.body = beacon_block_body
 
+#    print ("  Validator", validator.validator_index, "  about to process that block w records")
+    # for r in processed_state.custody_chunk_challenge_records:
+    #     print(r)
     process_block(processed_state, beacon_block)
     state_root = hash_tree_root(processed_state)
     beacon_block.state_root = state_root
@@ -1005,11 +1016,12 @@ def honest_chunk_challenge_response(validator, known_items):
     if validator.chunk_challenges_accusations: # has outstanding accusation
         record = validator.chunk_challenges_accusations[-1]
         response = CustodyChunkResponse(
-          challenge_index = record.challenge_index
+          challenge_index = record.challenge_index,
+          chunk_index = record.chunk_index
         )
         validator.chunk_challenges_accusations = validator.chunk_challenges_accusations[:-1]
 #        validator.chunk_challenge_sent.append(response)
-        print(validator.validator_index, "responds to challenge")
+        print(validator.validator_index, "responds to challenge", response)
         return response
     return None
 

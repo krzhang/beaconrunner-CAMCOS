@@ -207,7 +207,9 @@ MAX_CHUNK_CHALLENGE_DELAY = uint64(2**15)
 MAX_CUSTODY_CHUNK_CHALLENGE_RECORDS = uint64(2**20)
 MAX_CUSTODY_KEY_REVEALS = uint64(2**8)
 MAX_EARLY_DERIVED_SECRET_REVEALS = uint64(2**0)
-MAX_CUSTODY_CHUNK_CHALLENGES = uint64(2**2)
+# MAX_CUSTODY_CHUNK_CHALLENGES = uint64(2**2)
+# For testing:
+MAX_CUSTODY_CHUNK_CHALLENGES = uint64(2**1)
 MAX_CUSTODY_CHUNK_CHALLENGE_RESPONSES = uint64(2**4)
 MAX_CUSTODY_SLASHINGS = uint64(2**0)
 EARLY_DERIVED_SECRET_REVEAL_SLOT_REWARD_MULTIPLE = uint64(2**1)
@@ -351,6 +353,8 @@ class CustodyChunkChallenge(Container):
     data_index: uint64
     chunk_index: uint64
 
+    def __str__(self):
+        return ("Challenge: %d challenged for index %d" % (self.responder_index, self.chunk_index))
 
 class CustodyChunkChallengeRecord(Container):
     """ used in network state """
@@ -361,12 +365,19 @@ class CustodyChunkChallengeRecord(Container):
     data_root: Root
     chunk_index: uint64
 
+    def __str__(self):
+        return ("Challenge %d: %d challenging %d for index %d" % (self.challenge_index, self.challenger_index,
+                                                                  self.responder_index,
+                                                                  self.chunk_index))
 
 class CustodyChunkResponse(Container):
     challenge_index: uint64
     chunk_index: uint64
     chunk: ByteVector[BYTES_PER_CUSTODY_CHUNK]
     branch: Vector[Root, CUSTODY_RESPONSE_DEPTH + 1]
+
+    def __str__(self):
+        return ("Response: Challenge %d, index %d" % (self.challenge_index, self.chunk_index))
 
 
 class CustodySlashing(Container):
@@ -1565,7 +1576,6 @@ def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
     for_ops(body.voluntary_exits, process_voluntary_exit)
 
     # See custody game spec.
-    # put back in later
     process_custody_game_operations(state, body)
 
     # put back in later
@@ -2189,12 +2199,12 @@ def process_chunk_challenge(state: BeaconState, challenge: CustodyChunkChallenge
     # assert hash_tree_root(challenge.shard_transition) == challenge.attestation.data.shard_transition_root
     # data_root = challenge.shard_transition.shard_data_roots[challenge.data_index]
     
-    # # Verify the challenge is not a duplicate
-    # for record in state.custody_chunk_challenge_records:
-    #     assert (
-    #         record.data_root != data_root or
-    #         record.chunk_index != challenge.chunk_index
-    #     )
+    # Verify the challenge is not a duplicate
+    for record in state.custody_chunk_challenge_records:
+        assert (
+#            record.data_root != data_root or
+            record.chunk_index != challenge.chunk_index
+        )
 
     # # Verify depth
     # shard_block_length = challenge.shard_transition.shard_block_lengths[challenge.data_index]
@@ -2208,7 +2218,7 @@ def process_chunk_challenge(state: BeaconState, challenge: CustodyChunkChallenge
         responder_index=challenge.responder_index,
         inclusion_epoch=get_current_epoch(state),
         # data_root=challenge.shard_transition.shard_data_roots[challenge.data_index],
-        # chunk_index=challenge.chunk_index,
+        chunk_index=challenge.chunk_index,
     )
     replace_empty_or_append(state.custody_chunk_challenge_records, new_record)
 
@@ -2227,8 +2237,8 @@ def process_chunk_challenge_response(state: BeaconState,
     assert len(matching_challenges) == 1
     challenge = matching_challenges[0]
     
-    # # Verify chunk index
-    # assert response.chunk_index == challenge.chunk_index
+    # Verify chunk index
+    assert response.chunk_index == challenge.chunk_index
     
     # # Verify the chunk matches the crosslink data root
     # assert is_valid_merkle_branch(
@@ -2244,7 +2254,7 @@ def process_chunk_challenge_response(state: BeaconState,
     state.custody_chunk_challenge_records[index_in_records] = CustodyChunkChallengeRecord()
     # Reward the proposer
     proposer_index = get_beacon_proposer_index(state)
-    print("Validator ", challenge.responder_index, "succeeds; Validator", challenge.challenger_index, "is rewarded.")
+    # print("Challenge ", record.challenge_index, "Validator ", challenge.responder_index, "succeeds; Validator", challenge.challenger_index, "is rewarded.")
     increase_balance(state, proposer_index, Gwei(get_base_reward(state, proposer_index) // MINOR_REWARD_QUOTIENT))
 
 def process_custody_slashing(state: BeaconState, signed_custody_slashing: SignedCustodySlashing) -> None:

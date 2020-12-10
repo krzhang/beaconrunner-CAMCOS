@@ -9,7 +9,7 @@ from .specs import (
     Slot, Root, Epoch, CommitteeIndex, ValidatorIndex, Store,
     BeaconState, BeaconBlock, BeaconBlockBody, SignedBeaconBlock,
     Attestation, AttestationData, Checkpoint, BLSSignature,
-    CustodyChunkChallenge, CustodyChunkResponse, CustodySlashing, bit_challenge_record, MAX_CUSTODY_SLASHINGS,
+    CustodyChunkChallenge, CustodyChunkResponse, CustodySlashing, MAX_CUSTODY_SLASHINGS,
     MAX_VALIDATORS_PER_COMMITTEE, VALIDATOR_REGISTRY_LIMIT,
     SLOTS_PER_EPOCH, DOMAIN_RANDAO, DOMAIN_BEACON_PROPOSER,
     DOMAIN_BEACON_ATTESTER, MAX_CUSTODY_CHUNK_CHALLENGES, SECONDS_PER_SLOT, 
@@ -214,8 +214,6 @@ class BRValidator:
 
         self.chunk_challenges_accusations = []
         self.chunk_responses_sent = []
-
-        self.isBitChallenged = False
 
         # self.attest = honest_attest_asap
         # self.propose = honest_propose
@@ -943,24 +941,24 @@ def honest_propose_base(validator, known_items):
     print("  %d chunk challenges" % (validator.validator_index), challenged)
 
     # publishing chunk challenge responses
-    chunk_responses = [att.item for att in known_items["chunk_responses"]
-                       if should_process_response(processed_state, att.item)]
+    chunk_responses = [i.item for i in known_items["chunk_responses"]
+                       if should_process_response(processed_state, i.item)]
 
-    # for r in chunk_responses:
-    #   print ("  Validator", validator.validator_index, "considering response", r.challenge_index)
-    #   print ("    ", r)
+    # Publishing Bit Challenges
+
+    # bit_challenges = [b.item for b in known_items["bit_challenges"]
+    #                   if should_proceess_bit_challenge(processed_state, b.item)]
     
-    #Publishing Bit Challenges
-    if not bit_challenge_record:
-        return None
-    bit_challenge_accepted = random.choice(bit_challenge_record)
-    print(bit_challenge_accepted.whistleblower_index, "'s bit challenge to", bit_challenge_accepted.malefactor_index,"got accepted")
+    # if not bit_challenge_record:
+    #     return None
+    # bit_challenge_accepted = random.choice(bit_challenge_record)
+    # print(bit_challenge_accepted.whistleblower_index, "'s bit challenge to", bit_challenge_accepted.malefactor_index,"got accepted")
 
     beacon_block_body = BeaconBlockBody(
         attestations=attestations,
         chunk_challenges=chunk_challenges,
         chunk_challenge_responses=chunk_responses,
-        custody_slashings=bit_challenge_accepted
+#        custody_slashings=bit_challenge_accepted
     )
     epoch_signature = get_epoch_signature(processed_state, beacon_block, validator.privkey)
     beacon_block_body.randao_reveal = epoch_signature
@@ -1039,14 +1037,18 @@ def honest_bit_challenge(validator, known_items):
         malefactor_index = attestor_index,
         whistleblower_index = validator.validator_index
     )
-    bit_challenge_record.append(bit_challenge)
+
+    # TODO: 
+    # bit_challenge_record.append(bit_challenge)
+    # instead of something "global," we should have a record like custody_chunk_challenge_records
+    # inside BeaconState, and update that with process_custody_slashing
+    
     # print("  ", validator.validator_index, " bit challenging", attestor_index)
     return bit_challenge
 
 def lazy_bit_challenge(validator, known_items):
     return None
 
-  
 ## Validator makers
 
 def validator_maker(num_validators,

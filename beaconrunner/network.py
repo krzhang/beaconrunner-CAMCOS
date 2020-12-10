@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from .specs import (
     VALIDATOR_REGISTRY_LIMIT,
     ValidatorIndex, Slot,
-    BeaconState, Attestation, SignedBeaconBlock, CustodyChunkResponse, 
+    BeaconState, Attestation, SignedBeaconBlock, CustodyChunkResponse, CustodySlashing,
     Store, get_forkchoice_store, on_block, on_attestation
 )
 from .validatorlib import BRValidator
@@ -39,6 +39,13 @@ class NetworkChunkResponse(object):
     info_sets: List[NetworkSetIndex, VALIDATOR_REGISTRY_LIMIT]
 
 @dataclass
+class NetworkCustodySlashing(object):
+    """ Or "bit challenge" """
+    responder: ValidatorIndex
+    item: CustodySlashing
+    info_sets: List[NetworkSetIndex, VALIDATOR_REGISTRY_LIMIT]
+
+@dataclass
 class Network(object):
     validators: List[BRValidator, VALIDATOR_REGISTRY_LIMIT]
     sets: List[NetworkSet, VALIDATOR_REGISTRY_LIMIT]
@@ -48,6 +55,7 @@ class Network(object):
     attestations: List[NetworkAttestation, VALIDATOR_REGISTRY_LIMIT] = field(default_factory=list)
     blocks: List[NetworkBlock, VALIDATOR_REGISTRY_LIMIT] = field(default_factory=list)
     chunk_responses: List[NetworkChunkResponse, VALIDATOR_REGISTRY_LIMIT] = field(default_factory=list)
+    bit_challenges: List[NetworkCustodySlashing, VALIDATOR_REGISTRY_LIMIT] = field(default_factory=list)
     
     # We have the possibility of malicious validators refusing to propagate messages.
     # Unused so far and untested too.
@@ -65,12 +73,15 @@ def knowledge_set(network: Network, validator_index: ValidatorIndex) -> Dict[str
     """
 
     info_sets = set(get_all_sets_for_validator(network, validator_index))
-    known_attestations = [item for item in network.attestations if len(set(item.info_sets) & info_sets) > 0]
+    known_attestations = [item for item in network.attestations if
+                          len(set(item.info_sets) & info_sets) > 0]
     known_blocks = [item for item in network.blocks if len(set(item.info_sets) & info_sets) > 0]
     known_chunk_responses = [item for item in network.chunk_responses if len(set(item.info_sets) &
                                                                              info_sets) > 0]
+    known_bit_challenges = [item for item in network.bit_challenges if len(set(item.info_sets) &
+                                                                           info_sets) > 0]
     return { "attestations": known_attestations, "blocks": known_blocks,
-             "chunk_responses": known_chunk_responses}
+             "chunk_responses": known_chunk_responses, "bit_challenges": known_bit_challenges}
 
 def ask_to_check_backlog(network: Network,
                          validator_indices: Set[ValidatorIndex]) -> None:

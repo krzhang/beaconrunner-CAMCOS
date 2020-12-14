@@ -13,6 +13,7 @@ print("auxiliary imports loaded!")
 
 import beaconrunner as br
 import beaconrunner.validatorlib as brv
+import beaconrunner.strategies as brs
 
 import thunderdome_prepare as tp
 
@@ -38,10 +39,10 @@ print("observers implemented!")
 # from beaconrunner.validators.ASAPValidator import ASAPValidator
 # from beaconrunner.validators.PrudentValidator import PrudentValidator
 
-attest_funcs = [brv.honest_attest_asap, brv.honest_attest_prudent]
-propose_funcs = [brv.honest_propose]
-chunk_response_funcs = [brv.honest_chunk_challenge_response]
-bit_challenge_funcs = [brv.honest_bit_challenge]
+attest_funcs = [brs.honest_attest_asap, brs.honest_attest_prudent]
+propose_funcs = [brs.honest_propose]
+chunk_response_funcs = [brs.honest_chunk_challenge_response]
+bit_challenge_funcs = [brs.honest_bit_challenge]
 
 def simulate_once(network_sets, num_run, num_validators, network_update_rate):
 

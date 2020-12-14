@@ -14,54 +14,21 @@ print("auxiliary imports loaded!")
 import beaconrunner as br
 import beaconrunner.validatorlib as brv
 
+import thunderdome_prepare as tp
+
 prepare_config(".", "fast")
 br.reload_package(br)
 
 print("beaconrunner loaded!")
-# We then create our observers, to allow us to record interesting metrics at each simulation step.
 
-# An observer seems to be just a function state -> information
+# We then create our observers, to allow us to record interesting metrics at each simulation step.
 
 current_slot = lambda s: s["network"].validators[0].data.slot
 
-def average_balance_observer(validator_type):
-    """ A function factory that returns an observer function"""
-    def obs_func(state):
-        validators = state["network"].validators
-        validator = validators[0]
-        head = br.specs.get_head(validator.store)
-        current_state = validator.store.block_states[head]
-        current_epoch = br.specs.get_current_epoch(current_state)
-        indices = [i for i, v in enumerate(validators) if validator_type in v.validator_behavior]
-        balances = [b for i, b in enumerate(current_state.balances) if i in indices]
-        utilities = [validators[i].utility for i in indices]
-        return br.utils.eth2.gwei_to_eth((sum(balances) + sum(utilities))/ float(len(indices)))
-    return obs_func
-  
-# def average_balance_prudent(state):
-#     validators = state["network"].validators
-#     validator = validators[0]
-#     head = br.specs.get_head(validator.store)
-#     current_state = validator.store.block_states[head]
-#     current_epoch = br.specs.get_current_epoch(current_state)
-#     prudent_indices = [i for i, v in enumerate(validators) if v.validator_behaviour == "prudent"]
-#     prudent_balances = [b for i, b in enumerate(current_state.balances) if i in prudent_indices]
-#     return br.utils.eth2.gwei_to_eth(sum(prudent_balances) / float(len(prudent_indices)))
-
-# def average_balance_asap(state):
-#     validators = state["network"].validators
-#     validator = validators[0]
-#     head = br.specs.get_head(validator.store)
-#     current_state = validator.store.block_states[head]
-#     current_epoch = br.specs.get_current_epoch(current_state)
-#     asap_indices = [i for i, v in enumerate(validators) if v.validator_behaviour == "asap"]
-#     asap_balances = [b for i, b in enumerate(current_state.balances) if i in asap_indices]
-#     return br.utils.eth2.gwei_to_eth(sum(asap_balances) / float(len(asap_indices)))
-
 observers = {
     "current_slot": current_slot,
-    "average_balance_prudent": average_balance_observer("honest_attest_prudent"),
-    "average_balance_asap": average_balance_observer("honest_attest_asap")
+    "average_balance_prudent": tp.average_balance_observer("honest_attest_prudent"),
+    "average_balance_asap": tp.average_balance_observer("honest_attest_asap")
 }
 
 print("observers implemented!")
@@ -78,8 +45,8 @@ bit_challenge_funcs = [brv.honest_bit_challenge]
 
 def simulate_once(network_sets, num_run, num_validators, network_update_rate):
 
-    validators = brv.validator_maker(num_validators, attest_funcs, propose_funcs,
-                                     chunk_response_funcs, bit_challenge_funcs)
+    validators = tp.validator_maker(num_validators, attest_funcs, propose_funcs,
+                                    chunk_response_funcs, bit_challenge_funcs)
     print("%d validators created!" % len(validators))
 
     # Create a genesis state
@@ -100,7 +67,6 @@ def simulate_once(network_sets, num_run, num_validators, network_update_rate):
     })
 
     return br.simulator.simulate(network, parameters, observers)
-
 
 import pandas as pd
 

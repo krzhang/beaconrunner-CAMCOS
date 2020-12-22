@@ -1507,41 +1507,6 @@ def process_block_header(state: BeaconState, block: BeaconBlock) -> None:
     proposer = state.validators[block.proposer_index]
     assert not proposer.slashed
 
-
-# def process_randao(state: BeaconState, body: BeaconBlockBody) -> None:
-#     epoch = get_current_epoch(state)
-#     # Verify RANDAO reveal
-#     proposer = state.validators[get_beacon_proposer_index(state)]
-#     signing_root = compute_signing_root(epoch, get_domain(state, DOMAIN_RANDAO))
-#     assert bls.Verify(proposer.pubkey, signing_root, body.randao_reveal)
-#     # Mix in RANDAO reveal
-#     mix = xor(get_randao_mix(state, epoch), hash(body.randao_reveal))
-#     state.randao_mixes[epoch % EPOCHS_PER_HISTORICAL_VECTOR] = mix
-
-
-# def process_eth1_data(state: BeaconState, body: BeaconBlockBody) -> None:
-#     state.eth1_data_votes.append(body.eth1_data)
-#     if state.eth1_data_votes.count(body.eth1_data) * 2 > EPOCHS_PER_ETH1_VOTING_PERIOD * SLOTS_PER_EPOCH:
-#         state.eth1_data = body.eth1_data
-
-
-# def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
-#     # Verify that outstanding deposits are processed up to the maximum number of deposits
-#     # assert len(body.deposits) == min(MAX_DEPOSITS, state.eth1_data.deposit_count - state.eth1_deposit_index)
-
-#     def for_ops(operations: Sequence[Any], fn: Callable[[BeaconState, Any], None]) -> None:
-#         for operation in operations:
-#             fn(state, operation)
-
-#     for_ops(body.proposer_slashings, process_proposer_slashing)
-#     for_ops(body.attester_slashings, process_attester_slashing)
-#     for_ops(body.attestations, process_attestation)
-#     for_ops(body.deposits, process_deposit)
-#     for_ops(body.voluntary_exits, process_voluntary_exit)
-
-
-
-
 def process_randao(state: BeaconState, body: BeaconBlockBody) -> None:
     epoch = get_current_epoch(state)
     # Verify RANDAO reveal

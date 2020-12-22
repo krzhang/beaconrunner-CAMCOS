@@ -28,8 +28,8 @@ current_slot = lambda s: s["network"].validators[0].data.slot
 
 observers = {
     "current_slot": current_slot,
-    "average_balance_prudent": tp.average_balance_observer("honest_attest_prudent"),
-    "average_balance_asap": tp.average_balance_observer("honest_attest_asap")
+    "average_balance_honest_attestors": tp.average_balance_observer("honest_attest_asap"),
+    "average_balance_dishonest_attestors": tp.average_balance_observer("dishonest_attest_asap")
 }
 
 print("observers implemented!")
@@ -39,10 +39,10 @@ print("observers implemented!")
 # from beaconrunner.validators.ASAPValidator import ASAPValidator
 # from beaconrunner.validators.PrudentValidator import PrudentValidator
 
-attest_funcs = [brs.honest_attest_asap, brs.honest_attest_prudent]
+attest_funcs = [brs.honest_attest_asap, brs.dishonest_attest_asap]
 propose_funcs = [brs.honest_propose]
 chunk_response_funcs = [brs.honest_chunk_challenge_response]
-bit_challenge_funcs = [brs.honest_bit_challenge]
+bit_challenge_funcs = [brs.honest_bit_challenge, brs.dishonest_bit_challenge, brs.lazy_bit_challenge]
 
 SIMULATION_NUM_EPOCHS = 1 # 40
 SIMULATION_NUM_VALIDATORS = 12
@@ -99,4 +99,4 @@ slot_to_check = SIMULATION_NUM_EPOCHS * 4 + 1
 
 # need to print since this returns a dataframe
 
-print (df[df.current_slot == slot_to_check][['average_balance_prudent', 'average_balance_asap']].describe())
+print (df[df.current_slot == slot_to_check][["average_balance_honest_attestors", 'average_balance_dishonest_attestors']].describe())

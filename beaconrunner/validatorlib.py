@@ -131,6 +131,10 @@ class ValidatorData:
     
     # chunk_responses_sent: List[CustodyChunkResponse]
 
+    challenged_attestations: List[Attestation, VALIDATOR_REGISTRY_LIMIT]
+    
+    sent_bit_challenges: List[CustodySlashing, VALIDATOR_REGISTRY_LIMIT]
+
 class HashableSpecStore(Container):
     """ We cache a map from current state of the `Store` to `head`, since `get_head`
     is computationally intensive. But `Store` is not hashable right off the bat.
@@ -224,7 +228,8 @@ class BRValidator:
         self.chunk_response = chunk_response_func
         self.bit_challenge = bit_challenge_func
 
-        self.utility = 0        
+        self.utility = 0
+        
         self.validator_behavior = [attest_func.__name__,
                                    propose_func.__name__,
                                    chunk_response_func.__name__,
@@ -234,6 +239,8 @@ class BRValidator:
         """
         """
 
+        # TODO: need to put a lot of stuff here whenever we update simulator spec
+        
         self.store = get_forkchoice_store(state.copy())
 
         self.data.time_ms = self.store.time * 1000
@@ -242,6 +249,9 @@ class BRValidator:
         self.data.current_epoch = compute_epoch_at_slot(self.data.slot)
         self.data.head_root = self.get_head()
 
+        self.data.sent_bit_challenges = []
+        self.data.challenged_attestations = []
+        
         current_state = state.copy()
         if current_state.slot < self.data.slot:
             process_slots(current_state, self.data.slot)

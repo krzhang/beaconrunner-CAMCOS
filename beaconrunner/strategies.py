@@ -35,7 +35,7 @@ def get_attestation_signature(state: BeaconState, attestation_data: AttestationD
     signing_root = compute_signing_root(attestation_data, domain)
     return bls.Sign(privkey, signing_root)
 
-def honest_attest_base(validator, known_items):
+def attest_base(validator, known_items, honesty=True):
     """
     Returns an honest attestation from `validator`.
 
@@ -65,12 +65,17 @@ def honest_attest_base(validator, known_items):
     epoch_boundary_block_root = block_root if start_slot == head_state.slot else get_block_root_at_slot(head_state, start_slot)
     tgt_checkpoint = Checkpoint(epoch=get_current_epoch(head_state), root=epoch_boundary_block_root)
 
+    if honesty:
+        accuracy = True
+    else:
+        accuracy = random.choice([True, False])
     att_data = AttestationData(
         index = committee_index,
         slot = committee_slot,
         beacon_block_root = block_root,
         source = head_state.current_justified_checkpoint,
-        target = tgt_checkpoint
+        target = tgt_checkpoint,
+        accuracy = accuracy
     )
 
     # Set aggregation bits to myself only
@@ -87,45 +92,17 @@ def honest_attest_base(validator, known_items):
 
     return attestation
 
-def honest_attest_asap(validator, known_items):
+def attest(validator, known_items, speed, honesty=True):
     """
-    Returns an honest `Attestation` as soon as at least four seconds (`SECONDS_PER_SLOT / 3`)
+    speed = "asap": Returns an honest `Attestation` as soon as at least four seconds (`SECONDS_PER_SLOT / 3`)
     have elapsed into the slot where the validator is supposed to attest or the validator
     has received a valid block for the attesting slot.
     Checks whether an attestation was produced for the same slot to avoid slashing.
     
-    Args:
-        validator: Validator
-        known_items (Dict): Known blocks and attestations received over-the-wire (but perhaps not included yet in `validator.store`)
-    
-    Returns:
-        Optional[Attestation]: Either `None` if the validator decides not to attest,
-        otherwise an honest `Attestation`
-    """
-    
-    # Not the moment to attest
-    if validator.data.current_attest_slot != validator.data.slot:
-        return None
-    
-    time_in_slot = (validator.store.time - validator.store.genesis_time) % SECONDS_PER_SLOT
-    
-    # Too early in the slot / didn't receive block
-    if not validator.data.received_block and time_in_slot < 4:
-        return None
-    
-    # Already attested for this slot
-    if validator.data.last_slot_attested == validator.data.slot:
-        return None
-    
-    # honest attest
-    return honest_attest_base(validator, known_items)
-  
-def honest_attest_prudent(validator, known_items):
-    """
-    Returns an honest `Attestation` as soon as a block was received for the
+    speed = "prudent": Returns an honest `Attestation` as soon as a block was received for the
     attesting slot *or* at least 8 seconds (`2 * SECONDS_PER_SLOT / 3`) have elapsed.
     Checks whether an attestation was produced for the same slot to avoid slashing.
-    
+
     Args:
         validator: Validator
         known_items (Dict): Known blocks and attestations received over-the-wire (but perhaps not included yet in `validator.store`)
@@ -140,9 +117,15 @@ def honest_attest_prudent(validator, known_items):
         return None
     
     time_in_slot = (validator.store.time - validator.store.genesis_time) % SECONDS_PER_SLOT
+
+    if speed == "asap":
+        cutoff = 4
+    else:
+        assert speed == "prudent"
+        cutoff = 8
     
     # Too early in the slot / didn't receive block
-    if not validator.data.received_block and time_in_slot < 8:
+    if not validator.data.received_block and time_in_slot < cutoff:
         return None
     
     # Already attested for this slot
@@ -150,8 +133,19 @@ def honest_attest_prudent(validator, known_items):
         return None
     
     # honest attest
-    return honest_attest_base(validator, known_items)
+    return attest_base(validator, known_items, honesty)
 
+def honest_attest_asap(validator, known_items):
+    return attest(validator, known_items, "asap", honesty=False)
+
+def honest_attest_prudent(validator, known_items):
+    return attest(validator, known_items, "prudent", honesty=True)
+  
+def dishonest_attest_asap(validator, known_items):
+    return attest(validator, known_items, "asap", honesty=False)
+
+def dishonest_attest_prudent(validator, known_items):
+    return attest(validator, known_items, "prudent", honesty=False)
   
 ### Aggregation helpers
 
@@ -353,12 +347,22 @@ def honest_chunk_challenge_response(validator, known_items):
 def lazy_chunk_challenge_response(validator, known_items):
     return None
   
-def honest_bit_challenge(validator, known_items):
-    
+def bit_challenge_base(validator, known_items, honesty=True):
+    """ The base function when we ask someone to produce a challenge """
+
+    if honesty:
+        allowed_accuracies = [False]
+    else:
+        allowed_accuracies = [True, False]
     if not known_items['attestations']:
         return None
     challengeable_attestations = [att for att in known_items['attestations']
-                                  if att.attestor != validator.validator_index]
+                                  if (att.attestor != validator.validator_index and
+                                      att.item.data.accuracy in allowed_accuracies and
+                                      att.item not in validator.data.challenged_attestations
+                                  )]
+    # TODO: make sure this isn't already in known_bit_challenges, when that gets implemented
+    
     if not challengeable_attestations:
         return None
       
@@ -376,10 +380,39 @@ def honest_bit_challenge(validator, known_items):
     # bit_challenge_record.append(bit_challenge)
     # instead of something "global," we should have a record like custody_chunk_challenge_records
     # inside BeaconState, and update that with process_custody_slashing
-    
-    # print("  ", validator.validator_index, " bit challenging", attestor_index)
+
+    validator.data.challenged_attestations.append(attestation)
+    validator.data.sent_bit_challenges.append(bit_challenge)
+
+    if attestation.data.accuracy:
+        accuracy_text = "(accurate attest)"
+    else:
+        accuracy_text = "(inaccurate attest)"
+
+    print("  ", validator.validator_index, " bit challenging", attestor_index, accuracy_text)
     return bit_challenge
 
+def bit_challenge(validator, known_items, honesty=True):
+    """ the function when we ask someone at a particular time about bit challenging"""
+    # Not the moment to attest
+    
+    time_in_slot = (validator.store.time - validator.store.genesis_time) % SECONDS_PER_SLOT
+
+    cutoff = 9 # can play around with this later
+    
+    # Too early in the slot
+    if time_in_slot < cutoff:
+        return None
+    
+    # honest attest
+    return bit_challenge_base(validator, known_items, honesty)
+  
+def honest_bit_challenge(validator, known_items):
+    return bit_challenge(validator, known_items, honesty=True)
+
+def dishonest_bit_challenge(validator, known_items):
+    return bit_challenge(validator, known_items, honesty=False)
+  
 def lazy_bit_challenge(validator, known_items):
     return None
 

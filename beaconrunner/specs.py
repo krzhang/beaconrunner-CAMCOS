@@ -268,6 +268,8 @@ class AttestationData(Container):
     # Shard transition root
 #    shard_transition_root: Root
 
+    # Mocked simulation behavior; not in actual spec
+    accuracy: boolean
 
 class IndexedAttestation(Container):
     attesting_indices: List[ValidatorIndex, MAX_VALIDATORS_PER_COMMITTEE]

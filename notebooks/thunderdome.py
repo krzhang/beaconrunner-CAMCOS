@@ -44,6 +44,9 @@ propose_funcs = [brs.honest_propose]
 chunk_response_funcs = [brs.honest_chunk_challenge_response]
 bit_challenge_funcs = [brs.honest_bit_challenge]
 
+SIMULATION_NUM_EPOCHS = 1 # 40
+SIMULATION_NUM_VALIDATORS = 12
+
 def simulate_once(network_sets, num_run, num_validators, network_update_rate):
 
     validators = tp.validator_maker(num_validators, attest_funcs, propose_funcs,
@@ -61,7 +64,7 @@ def simulate_once(network_sets, num_run, num_validators, network_update_rate):
     network = br.network.Network(validators=validators, sets=network_sets)
 
     parameters = br.simulator.SimulationParameters({
-        "num_epochs": 20,
+        "num_epochs": SIMULATION_NUM_EPOCHS,
         "num_run": num_run,
         "frequency": 1,
         "network_update_rate": network_update_rate,
@@ -71,11 +74,9 @@ def simulate_once(network_sets, num_run, num_validators, network_update_rate):
 
 import pandas as pd
 
-num_validators = 12
-
 # Create the network peers
-set_a = br.network.NetworkSet(validators=list(range(0, int(num_validators * 2 / 3.0))))
-set_b = br.network.NetworkSet(validators=list(range(int(num_validators / 2.0), num_validators)))
+set_a = br.network.NetworkSet(validators=list(range(0, int(SIMULATION_NUM_VALIDATORS * 2 / 3.0))))
+set_b = br.network.NetworkSet(validators=list(range(int(SIMULATION_NUM_VALIDATORS / 2.0), SIMULATION_NUM_VALIDATORS)))
 network_sets = list([set_a, set_b])
 
 num_runs = 1
@@ -84,7 +85,7 @@ network_update_rate = 0.25
 
 print ("simulation ready!")
 
-df = pd.concat([simulate_once(network_sets, num_run, num_validators, network_update_rate) for num_run in range(num_runs)])
+df = pd.concat([simulate_once(network_sets, num_run, SIMULATION_NUM_VALIDATORS, network_update_rate) for num_run in range(num_runs)])
 
 # To do a fair amount of runs (40) simulating a good number of epochs (20), we set a low number of validators (12). Since we are more interested in comparing individual rewards between ASAP and prudent validators rather than macro-properties or even scalability of the chain, this is not a bad thing to do (and it speeds things up quite a bit).
 
@@ -94,4 +95,8 @@ df = pd.concat([simulate_once(network_sets, num_run, num_validators, network_upd
 
 print ("simulation done!")
 
-df[df.current_slot == 81][['average_balance_prudent', 'average_balance_asap']].describe()
+slot_to_check = SIMULATION_NUM_EPOCHS * 4 + 1
+
+# need to print since this returns a dataframe
+
+print (df[df.current_slot == slot_to_check][['average_balance_prudent', 'average_balance_asap']].describe())

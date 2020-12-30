@@ -583,6 +583,14 @@ class BRValidator:
             move = "chunk_response"
         ))
         # for simplicity we assume it's not important to e.g. make update_chunk_response
+
+    def log_bit_challenge(self, item: CustodySlashing) -> None: 
+
+        self.history.append(ValidatorMove(
+                time = self.data.time_ms,
+                slot = None, 
+                move = "bit_challenge"
+                ))
        
     def record_block(self, item: SignedBeaconBlock) -> bool:
         """

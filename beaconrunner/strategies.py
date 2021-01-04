@@ -89,7 +89,7 @@ def attest_base(validator, known_items, honesty=True):
     )
     attestation_signature = get_attestation_signature(head_state, att_data, validator.privkey)
     attestation.signature = attestation_signature
-
+    validator.log_attestation(attentation)
     return attestation
 
 def attest(validator, known_items, speed, honesty=True):
@@ -303,6 +303,7 @@ def honest_propose_base(validator, known_items):
     block_signature = get_block_signature(processed_state, beacon_block, validator.privkey)
     signed_block = SignedBeaconBlock(message=beacon_block, signature=block_signature)
 
+    validator.log_block(signed_block)
     return signed_block
 
 def honest_propose(validator, known_items):
@@ -338,6 +339,7 @@ def honest_chunk_challenge_response(validator, known_items):
           challenge_index = record.challenge_index,
           chunk_index = record.chunk_index
         )
+        validator.log_chunk_response(response)
         validator.chunk_challenges_accusations = validator.chunk_challenges_accusations[:-1]
 #        validator.chunk_challenge_sent.append(response)
         print(validator.validator_index, "responds to challenge", response)
@@ -375,6 +377,7 @@ def bit_challenge_base(validator, known_items, honesty=True):
         malefactor_index = attestor_index,
         whistleblower_index = validator.validator_index
     )
+    validator.log_bit_challenge(bit_challenge)
 
     # TODO: 
     # bit_challenge_record.append(bit_challenge)

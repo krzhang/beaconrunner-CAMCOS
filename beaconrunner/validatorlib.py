@@ -582,6 +582,7 @@ class BRValidator:
             slot = None,
             move = "chunk_response"
         ))
+        print("chunk response logged")
         # for simplicity we assume it's not important to e.g. make update_chunk_response
 
     def log_bit_challenge(self, item: CustodySlashing) -> None: 

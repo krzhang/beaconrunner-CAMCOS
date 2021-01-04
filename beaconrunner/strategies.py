@@ -89,7 +89,7 @@ def attest_base(validator, known_items, honesty=True):
     )
     attestation_signature = get_attestation_signature(head_state, att_data, validator.privkey)
     attestation.signature = attestation_signature
-    validator.log_attestation(attentation)
+    validator.log_attestation(attestation)
     return attestation
 
 def attest(validator, known_items, speed, honesty=True):

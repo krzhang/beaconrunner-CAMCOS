@@ -65,18 +65,19 @@ def attest_base(validator, known_items, honesty=True):
     epoch_boundary_block_root = block_root if start_slot == head_state.slot else get_block_root_at_slot(head_state, start_slot)
     tgt_checkpoint = Checkpoint(epoch=get_current_epoch(head_state), root=epoch_boundary_block_root)
 
-    if honesty:
-        accuracy = True
-    else:
-        accuracy = random.choice([True, False])
     att_data = AttestationData(
         index = committee_index,
         slot = committee_slot,
         beacon_block_root = block_root,
         source = head_state.current_justified_checkpoint,
         target = tgt_checkpoint,
-        accuracy = accuracy
     )
+
+
+    if honesty:
+        accuracy = True
+    else:
+        accuracy = random.choices(population=[True, False], weights=[], k=1)[0]
 
     # Set aggregation bits to myself only
     committee_size = len(committee)

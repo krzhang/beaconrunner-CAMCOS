@@ -1,3 +1,5 @@
+# search for [CHANGED] for code changed from the specs for the simulation
+
 from eth2spec.config.config_util import apply_constants_config
 from typing import (
     Any, Dict, Set, Sequence, NewType, Tuple, TypeVar, Callable, Optional
@@ -253,6 +255,7 @@ class Validator(Container):
     # So how do we incentivise early custody key reveals now?
     all_custody_secrets_revealed_epoch: Epoch  # to be initialized to FAR_FUTURE_EPOCH
 
+
 class AttestationData(Container):
     slot: Slot
     index: CommitteeIndex
@@ -262,14 +265,15 @@ class AttestationData(Container):
     source: Checkpoint
     target: Checkpoint
     # Shard vote
-#    shard: Shard
+    # [CHANGED] (commented)   shard: Shard
     # Current-slot shard block root
-#    shard_head_root: Root
+    # [CHANGED] (commented)  shard_head_root: Root
     # Shard transition root
-#    shard_transition_root: Root
+    # [CHANGED] (commented)   shard_transition_root: Root
 
-    # Mocked simulation behavior; not in actual spec
+    # [CHANGED] (added)
     accuracy: boolean
+
 
 class IndexedAttestation(Container):
     attesting_indices: List[ValidatorIndex, MAX_VALIDATORS_PER_COMMITTEE]
@@ -333,6 +337,8 @@ class Attestation(Container):
     data: AttestationData
     signature: BLSSignature
 
+    # [CHANGED]
+    accuracy_bits: Bitlist[MAX_VALIDATORS_PER_COMMITTEE]
 
 class Deposit(Container):
     proof: Vector[Bytes32, DEPOSIT_CONTRACT_TREE_DEPTH + 1]  # Merkle path to deposit root
@@ -387,7 +393,7 @@ class CustodySlashing(Container):
     malefactor_index: ValidatorIndex
     malefactor_secret: BLSSignature
     whistleblower_index: ValidatorIndex
-#    shard_transition: ShardTransition
+    # [CHANGED] (commented) shard_transition: ShardTransition
     attestation: Attestation
     data: ByteList[MAX_SHARD_BLOCK_SIZE]
 
@@ -447,10 +453,10 @@ class BeaconState(Container):
     finalized_checkpoint: Checkpoint
     # Phase 1
     current_epoch_start_shard: Shard
-#    shard_states: List[ShardState, MAX_SHARDS]
+    # [CHANGED] (commented) shard_states: List[ShardState, MAX_SHARDS]
     online_countdown: List[OnlineEpochs, VALIDATOR_REGISTRY_LIMIT]  # not a raw byte array, considered its large size.
-#    current_light_committee: CompactCommittee
-#    next_light_committee: CompactCommittee
+    # [CHANGED] (commented)   current_light_committee: CompactCommittee
+    # [CHANGED] (commented)   next_light_committee: CompactCommittee
     # Custody game
     # Future derived secrets already exposed; contains the indices of the exposed validator
     # at RANDAO reveal period % EARLY_DERIVED_SECRET_PENALTY_MAX_FUTURE_EPOCHS
@@ -501,10 +507,10 @@ class BeaconBlockBody(Container):
     early_derived_secret_reveals: List[EarlyDerivedSecretReveal, MAX_EARLY_DERIVED_SECRET_REVEALS]
     custody_slashings: List[SignedCustodySlashing, MAX_CUSTODY_SLASHINGS]
     # Shards
-#     shard_transitions: Vector[ShardTransition, MAX_SHARDS]
+    # [CHANGED] (commented)     shard_transitions: Vector[ShardTransition, MAX_SHARDS]
     # Light clients
-#    light_client_bits: Bitvector[LIGHT_CLIENT_COMMITTEE_SIZE]
-#    light_client_signature: BLSSignature
+    # [CHANGED] (commented)   light_client_bits: Bitvector[LIGHT_CLIENT_COMMITTEE_SIZE]
+    # [CHANGED] (commented)   light_client_signature: BLSSignature
 
 
 class BeaconBlock(Container):
@@ -633,7 +639,7 @@ class FullAttestationData(Container):
     # Current-slot shard block root
     shard_head_root: Root
     # Full shard transition
-#    shard_transition: ShardTransition
+    # [CHANGED] (commented) shard_transition: ShardTransition
 
 
 class FullAttestation(Container):
@@ -1619,13 +1625,15 @@ def process_attestation(state: BeaconState, attestation: Attestation) -> None:
 
 def process_deposit(state: BeaconState, deposit: Deposit) -> None:
     # Verify the Merkle branch
-#     assert is_valid_merkle_branch(
-#         leaf=hash_tree_root(deposit.data),
-#         branch=deposit.proof,
-#         depth=DEPOSIT_CONTRACT_TREE_DEPTH + 1,  # Add 1 for the List length mix-in
-#         index=state.eth1_deposit_index,
-#         root=state.eth1_data.deposit_root,
-#     )
+
+    # [CHANGED] (commented)
+    #     assert is_valid_merkle_branch(
+    #         leaf=hash_tree_root(deposit.data),
+    #         branch=deposit.proof,
+    #         depth=DEPOSIT_CONTRACT_TREE_DEPTH + 1,  # Add 1 for the List length mix-in
+    #         index=state.eth1_deposit_index,
+    #         root=state.eth1_data.deposit_root,
+    #     )
 
     # Deposits must be processed in order
     state.eth1_deposit_index += 1

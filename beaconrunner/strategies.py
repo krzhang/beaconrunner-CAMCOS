@@ -74,9 +74,6 @@ def attest_base(validator, known_items, honesty=True):
         else:
             accuracy = False
 
-    if not will_attest:
-        return None
-
     # we will be attesting
 
     # Unpacking
@@ -107,13 +104,31 @@ def attest_base(validator, known_items, honesty=True):
     committee_size = len(committee)
     index_in_committee = committee.index(validator_index)
     aggregation_bits = Bitlist[MAX_VALIDATORS_PER_COMMITTEE](*([0] * committee_size))
+    # for sake of this simulation, assume the validator has sent an "empty attest" with the
+    # aggregation bit equal to False, as opposed to not sending an attestation at all
+    # (this helps us log the validator's decision)
+    # aggregation_bits[index_in_committee] = will_attest
     aggregation_bits[index_in_committee] = True # set the aggregation bit of the validator to True
     
     attestation = Attestation(
         aggregation_bits=aggregation_bits,
         accuracy=accuracy,
-        data=att_data
+        data=att_data,
+        virtual=not(will_attest)
     )
+
+    if accuracy:
+        accustr = "accurate"
+    else:
+        accustr = "inaccurate"
+    if will_attest:
+        skipstr = ""
+    else:
+        skipstr = "skips attest"
+        
+    if not(will_attest) or not(accuracy):
+        print ("%d %s (%s) for [%s]" % (validator.validator_index, skipstr, accustr,
+                                        att_data.slot))
     attestation_signature = get_attestation_signature(head_state, att_data, validator.privkey)
     attestation.signature = attestation_signature
     validator.log_attestation(attestation)
@@ -157,10 +172,9 @@ def attest(validator, known_items, speed, honesty=True):
     
     # Already attested for this slot
     if validator.data.last_slot_attested == validator.data.slot:
+        # TODO: if already decided to not attest, should not attest!
         return None
 
-    # TODO: if already decided to not attest, should not attest!
-    
     # honest attest
     return attest_base(validator, known_items, honesty)
 
@@ -389,8 +403,9 @@ def bit_challenge_base(validator, known_items, honesty=True):
         return None
     challengeable_attestations = [att for att in known_items['attestations']
                                   if (att.attestor != validator.validator_index and
-                                      att.item.data.accuracy in allowed_accuracies and
-                                      att.item not in validator.data.challenged_attestations
+                                      att.item.accuracy in allowed_accuracies and
+                                      att.item not in validator.data.challenged_attestations and
+                                      att.item.virtual == False
                                   )]
     # TODO: make sure this isn't already in known_bit_challenges, when that gets implemented
     
@@ -416,12 +431,13 @@ def bit_challenge_base(validator, known_items, honesty=True):
     validator.data.challenged_attestations.append(attestation)
     validator.data.sent_bit_challenges.append(bit_challenge)
 
-    if attestation.data.accuracy:
-        accuracy_text = "(accurate attest)"
+    if attestation.accuracy:
+        accuracy_text = "(accurate)"
     else:
-        accuracy_text = "(inaccurate attest)"
+        accuracy_text = "(inaccurate)"
 
-    print("  ", validator.validator_index, " bit challenging", attestor_index, accuracy_text)
+    print("  ", validator.validator_index, " bit challenging", attestor_index, accuracy_text,
+          "[%s]" % attestation.data.slot)
     return bit_challenge
 
 def bit_challenge(validator, known_items, honesty=True):
@@ -430,7 +446,9 @@ def bit_challenge(validator, known_items, honesty=True):
     
     time_in_slot = (validator.store.time - validator.store.genesis_time) % SECONDS_PER_SLOT
 
-    cutoff = 9 # can play around with this later
+    cutoff = 9
+    # the first time in the slot after which the validator considers bit challenging
+    # can play around with this later
     
     # Too early in the slot
     if time_in_slot < cutoff:

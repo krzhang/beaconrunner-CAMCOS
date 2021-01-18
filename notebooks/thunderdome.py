@@ -46,7 +46,7 @@ propose_funcs = [brs.honest_propose]
 chunk_response_funcs = [brs.honest_chunk_challenge_response]
 bit_challenge_funcs = [brs.honest_bit_challenge, brs.dishonest_bit_challenge, brs.lazy_bit_challenge]
 
-SIMULATION_NUM_EPOCHS = 1 # 40
+SIMULATION_NUM_EPOCHS = 3 # 40
 SIMULATION_NUM_VALIDATORS = 12
 
 def simulate_once(network_sets, num_run, num_validators, network_update_rate):
@@ -84,21 +84,31 @@ network_sets = list([set_a, set_b])
 
 num_runs = 1
 # num_runs = 40
-network_update_rate = 0.25
+network_update_rate = 0.25 # how quickly messages go around the network (?)
 
 print ("simulation ready!")
 
-df = pd.concat([simulate_once(network_sets, num_run, SIMULATION_NUM_VALIDATORS, network_update_rate) for num_run in range(num_runs)])
+df = pd.concat([simulate_once(network_sets,
+                              num_run,
+                              SIMULATION_NUM_VALIDATORS,
+                              network_update_rate) for num_run in range(num_runs)])
 
 # To do a fair amount of runs (40) simulating a good number of epochs (20), we set a low number of validators (12). Since we are more interested in comparing individual rewards between ASAP and prudent validators rather than macro-properties or even scalability of the chain, this is not a bad thing to do (and it speeds things up quite a bit).
 
-# Note here that we keep the same network topology across all our runs. However, validator types are placed randomly over the network with each new run, with always 50% of them Prudent and the other 50% ASAPs.
+# the shape of our df is (721, 10). To break it down:
+# there are 10 columns; the columns interesting to us are ["average_balance_honest_attestors", "average_balance_dishonest_attestors", "current_slot"]]
+# there are 721 rows (why?)
+
+# we have steps = num_slots * SECONDS_PER_SLOT * parameters.frequency
+#   so in this case (3*4) * 12 * 1 = 144
+#   where the hell is the 5x coming from? # guess might be the 5 psubs?
+# the 5x is also the thing that seems to average over a count of 60
+print ("simulation done!")
 
 # Since we have 4 slots per epoch, and 20 epochs, let's read the average balances at slot 81, after the 20th epoch rewards and penalties were computed.
 
-print ("simulation done!")
-
 slot_to_check = SIMULATION_NUM_EPOCHS * 4 + 1
+# slot_to_check = SIMULATION_NUM_EPOCHS * 4
 
 # need to print since this returns a dataframe
 

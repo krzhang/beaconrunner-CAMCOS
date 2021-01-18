@@ -145,7 +145,8 @@ GENESIS_DELAY = uint64(172800)
 SECONDS_PER_SLOT = uint64(12)
 SECONDS_PER_ETH1_BLOCK = uint64(14)
 MIN_ATTESTATION_INCLUSION_DELAY = uint64(2**0)
-SLOTS_PER_EPOCH = uint64(2**5)
+# [CHANGED] SLOTS_PER_EPOCH = uint64(2**5)
+SLOTS_PER_EPOCH = uint64(4)
 MIN_SEED_LOOKAHEAD = uint64(2**0)
 MAX_SEED_LOOKAHEAD = uint64(2**2)
 MIN_EPOCHS_TO_INACTIVITY_PENALTY = uint64(2**2)
@@ -276,9 +277,6 @@ class AttestationData(Container):
     # Shard transition root
     # [CHANGED] (commented)   shard_transition_root: Root
 
-    # [CHANGED] (added)
-    accuracy: boolean
-
 
 class IndexedAttestation(Container):
     attesting_indices: List[ValidatorIndex, MAX_VALIDATORS_PER_COMMITTEE]
@@ -344,6 +342,7 @@ class Attestation(Container):
 
     # [CHANGED]
     accuracy: boolean
+    virtual: boolean # True if this isn't actually sent (custody bit=1, etc.)
 
 class Deposit(Container):
     proof: Vector[Bytes32, DEPOSIT_CONTRACT_TREE_DEPTH + 1]  # Merkle path to deposit root
@@ -2156,7 +2155,7 @@ def process_custody_game_operations(state: BeaconState, body: BeaconBlockBody) -
     for_ops(body.chunk_challenge_responses, process_chunk_challenge_response)
     # for_ops(body.custody_key_reveals, process_custody_key_reveal)
     # for_ops(body.early_derived_secret_reveals, process_early_derived_secret_reveal)
-    # for_ops(body.custody_slashings, process_custody_slashing)
+    for_ops(body.custody_slashings, process_custody_slashing)
 
 def process_chunk_challenge(state: BeaconState, challenge: CustodyChunkChallenge) -> None:
     # Verify the attestation
@@ -2241,6 +2240,8 @@ def process_custody_slashing(state: BeaconState, signed_custody_slashing: Signed
     custody_slashing = signed_custody_slashing.message
     attestation = custody_slashing.attestation
 
+    print ("someone is losing money")
+    
     # Any signed custody-slashing should result in at least one slashing.
     # If the custody bits are valid, then the claim itself is slashed.
     malefactor = state.validators[custody_slashing.malefactor_index]
@@ -2256,6 +2257,9 @@ def process_custody_slashing(state: BeaconState, signed_custody_slashing: Signed
     # Verify the attestation
     assert is_valid_indexed_attestation(state, get_indexed_attestation(state, attestation))
 
+    # [CHANGED]
+    assert attestation.virtual == False
+    
     # TODO: can do a single combined merkle proof of data being attested.
     # Verify the shard transition is indeed attested by the attestation
     shard_transition = custody_slashing.shard_transition
@@ -2301,9 +2305,10 @@ def process_custody_slashing(state: BeaconState, signed_custody_slashing: Signed
     #   actual custody bit computation
 
     # Verify the claim
-    if attestation.accuracy_bits[malefactor_index] == False:
+    if attestation.accuracy == False:
         # Slash the malefactor, reward the other committee members
         slash_validator(state, custody_slashing.malefactor_index)
+        print ("  %d slashed!" % custody_slashing.malefactor_index)
         committee = get_beacon_committee(state, attestation.data.slot, attestation.data.index)
         others_count = len(committee) - 1
         whistleblower_reward = Gwei(malefactor.effective_balance // WHISTLEBLOWER_REWARD_QUOTIENT // others_count)
@@ -2314,6 +2319,7 @@ def process_custody_slashing(state: BeaconState, signed_custody_slashing: Signed
     else:
         # The claim was false, the custody bit was correct. Slash the whistleblower that induced this work.
         slash_validator(state, custody_slashing.whistleblower_index)
+        print ("  %d slashed!" % custody_slashing.whistlefactor_index)
 
         
 def process_challenge_deadlines(state: BeaconState) -> None:

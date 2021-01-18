@@ -228,13 +228,17 @@ class BRValidator:
         self.chunk_response = chunk_response_func
         self.bit_challenge = bit_challenge_func
 
-        self.utility = 0
-        
         self.validator_behavior = [attest_func.__name__,
                                    propose_func.__name__,
                                    chunk_response_func.__name__,
                                    bit_challenge_func.__name__]
 
+
+    def __repr__(self):
+        return "Validator %d: %s" % (self.validator_index,
+                                     " ".join(self.validator_behavior))
+
+                                     
     def load_state(self, state: BeaconState) -> None:
         """
         """
@@ -260,6 +264,7 @@ class BRValidator:
         self.update_proposer(current_state)
         self.update_data()
 
+        
     def get_hashable_store(self) -> HashableSpecStore:
         """
         Returns a hash of the current store state.

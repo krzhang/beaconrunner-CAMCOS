@@ -49,8 +49,6 @@ def validator_maker(num_validators,
         ft = func_types_big[i]
         new_validator = br.validatorlib.BRValidator(i, attest_func=ft[0], propose_func=ft[1],
                            chunk_response_func=ft[2], bit_challenge_func = ft[3])
-#        new_validator.validator_behavior = [f.__name__ for f in ft]
-#        new_validator.utility = 0 # this is not in spec, so we are monkeypatching in
         validators.append(new_validator)
     return validators
   
@@ -68,8 +66,7 @@ def average_balance_observer(validator_type):
         current_epoch = br.specs.get_current_epoch(current_state)
         indices = [i for i, v in enumerate(validators) if validator_type in v.validator_behavior]
         balances = [b for i, b in enumerate(current_state.balances) if i in indices]
-        utilities = [validators[i].utility for i in indices]
-        return br.utils.eth2.gwei_to_eth((sum(balances) + sum(utilities))/ float(len(indices)))
+        return br.utils.eth2.gwei_to_eth((sum(balances))/ float(len(indices)))
     return obs_func
   
 # def average_balance_prudent(state):

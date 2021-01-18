@@ -39,6 +39,8 @@ print("observers implemented!")
 # from beaconrunner.validators.ASAPValidator import ASAPValidator
 # from beaconrunner.validators.PrudentValidator import PrudentValidator
 
+
+# attest_funcs = [brs.honest_attest_asap, brs.dishonest_attest_asap]
 attest_funcs = [brs.honest_attest_asap, brs.dishonest_attest_asap]
 propose_funcs = [brs.honest_propose]
 chunk_response_funcs = [brs.honest_chunk_challenge_response]
@@ -52,7 +54,8 @@ def simulate_once(network_sets, num_run, num_validators, network_update_rate):
     validators = tp.validator_maker(num_validators, attest_funcs, propose_funcs,
                                     chunk_response_funcs, bit_challenge_funcs)
     print("%d validators created!" % len(validators))
-
+    for v in validators:
+        print(v)
     # Create a genesis state
     genesis_state = br.simulator.get_genesis_state(validators)
     
@@ -99,4 +102,5 @@ slot_to_check = SIMULATION_NUM_EPOCHS * 4 + 1
 
 # need to print since this returns a dataframe
 
-print (df[df.current_slot == slot_to_check][["average_balance_honest_attestors", 'average_balance_dishonest_attestors']].describe())
+result = df[df.current_slot == slot_to_check][["average_balance_honest_attestors", 'average_balance_dishonest_attestors']].describe()
+print (result)

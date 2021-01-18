@@ -1,4 +1,9 @@
-# search for [CHANGED] for code changed from the specs for the simulation
+# specs downloaded from eth2.0/specs
+
+#####################################################################################
+# [CHANGED]: Changed specs: these specs do not match those on eth2.0/specs and have #
+# been changed / mocked for simulation purposes                                     #
+#####################################################################################
 
 from eth2spec.config.config_util import apply_constants_config
 from typing import (
@@ -338,7 +343,7 @@ class Attestation(Container):
     signature: BLSSignature
 
     # [CHANGED]
-    accuracy_bits: Bitlist[MAX_VALIDATORS_PER_COMMITTEE]
+    accuracy: boolean
 
 class Deposit(Container):
     proof: Vector[Bytes32, DEPOSIT_CONTRACT_TREE_DEPTH + 1]  # Merkle path to deposit root
@@ -2213,7 +2218,8 @@ def process_chunk_challenge_response(state: BeaconState,
     
     # Verify chunk index
     assert response.chunk_index == challenge.chunk_index
-    
+
+    # [CHANGED] (commented)
     # # Verify the chunk matches the crosslink data root
     # assert is_valid_merkle_branch(
     #     leaf=hash_tree_root(response.chunk),
@@ -2270,11 +2276,32 @@ def process_custody_slashing(state: BeaconState, signed_custody_slashing: Signed
     signing_root = compute_signing_root(epoch_to_sign, domain)
     assert bls.Verify(malefactor.pubkey, signing_root, custody_slashing.malefactor_secret)
 
-    # Compute the custody bit
-    computed_custody_bit = compute_custody_bit(custody_slashing.malefactor_secret, custody_slashing.data)
+    
+    # # Compute the custody bit
+    # computed_custody_bit = compute_custody_bit(custody_slashing.malefactor_secret, custody_slashing.data)
+    # # Verify the claim
+    # if computed_custody_bit == 1:
+    #     # Slash the malefactor, reward the other committee members
+    #     slash_validator(state, custody_slashing.malefactor_index)
+    #     committee = get_beacon_committee(state, attestation.data.slot, attestation.data.index)
+    #     others_count = len(committee) - 1
+    #     whistleblower_reward = Gwei(malefactor.effective_balance // WHISTLEBLOWER_REWARD_QUOTIENT // others_count)
+    #     for attester_index in attesters:
+    #         if attester_index != custody_slashing.malefactor_index:
+    #             increase_balance(state, attester_index, whistleblower_reward)
+    #     # No special whisteblower reward: it is expected to be an attester. Others are free to slash too however.
+    # else:
+    #     # The claim was false, the custody bit was correct. Slash the whistleblower that induced this work.
+    #     slash_validator(state, custody_slashing.whistleblower_index)
+
+    # # Compute the custody bit
+    # computed_custody_bit = compute_custody_bit(custody_slashing.malefactor_secret, custody_slashing.data)
+
+    # [CHANGED] the above commented code is replaced with accuracy check below, to avoid
+    #   actual custody bit computation
 
     # Verify the claim
-    if computed_custody_bit == 1:
+    if attestation.accuracy_bits[malefactor_index] == False:
         # Slash the malefactor, reward the other committee members
         slash_validator(state, custody_slashing.malefactor_index)
         committee = get_beacon_committee(state, attestation.data.slot, attestation.data.index)
@@ -2288,6 +2315,7 @@ def process_custody_slashing(state: BeaconState, signed_custody_slashing: Signed
         # The claim was false, the custody bit was correct. Slash the whistleblower that induced this work.
         slash_validator(state, custody_slashing.whistleblower_index)
 
+        
 def process_challenge_deadlines(state: BeaconState) -> None:
     for custody_chunk_challenge in state.custody_chunk_challenge_records:
         if get_current_epoch(state) > custody_chunk_challenge.inclusion_epoch + EPOCHS_PER_CUSTODY_PERIOD:

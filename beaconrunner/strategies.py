@@ -28,6 +28,12 @@ from eth2spec.utils.ssz.ssz_impl import hash_tree_root
 from eth2spec.utils.ssz.ssz_typing import Container, List, uint64, Bitlist
 from eth2spec.test.helpers.keys import pubkeys, pubkey_to_privkey
 
+# actually 0.999
+ASSIGNED_ATTEST_CHANCE = 0.9 
+# probability a dishonest person writes a custody bit
+DISHONEST_ATTEST_CHANCE = 0.9
+
+
 ### Attestation strategies
 
 def get_attestation_signature(state: BeaconState, attestation_data: AttestationData, privkey: int) -> BLSSignature:
@@ -48,6 +54,30 @@ def attest_base(validator, known_items, honesty=True):
     Returns:
         Attestation: The honest attestation
     """
+
+    # quick reminder:
+    # you attest if your custody bit is 1
+    
+    # are you supposed to attest (argh this should be decided earlier)
+    should_attest = random.choices(population=[True, False],
+                                   weights=[ASSIGNED_ATTEST_CHANCE,
+                                            1-ASSIGNED_ATTEST_CHANCE], k=1)[0]
+    if honesty:
+        will_attest = should_attest
+        accuracy = True
+    else:
+        will_attest = random.choices(population=[True, False],
+                                     weights=[DISHONEST_ATTEST_CHANCE,
+                                              1-DISHONEST_ATTEST_CHANCE], k=1)[0]
+        if will_attest == should_attest:
+            accuracy = True
+        else:
+            accuracy = False
+
+    if not will_attest:
+        return None
+
+    # we will be attesting
 
     # Unpacking
     validator_index = validator.validator_index
@@ -73,19 +103,15 @@ def attest_base(validator, known_items, honesty=True):
         target = tgt_checkpoint,
     )
 
-
-    if honesty:
-        accuracy = True
-    else:
-        accuracy = random.choices(population=[True, False], weights=[], k=1)[0]
-
     # Set aggregation bits to myself only
     committee_size = len(committee)
     index_in_committee = committee.index(validator_index)
     aggregation_bits = Bitlist[MAX_VALIDATORS_PER_COMMITTEE](*([0] * committee_size))
     aggregation_bits[index_in_committee] = True # set the aggregation bit of the validator to True
+    
     attestation = Attestation(
         aggregation_bits=aggregation_bits,
+        accuracy=accuracy,
         data=att_data
     )
     attestation_signature = get_attestation_signature(head_state, att_data, validator.privkey)
@@ -97,7 +123,7 @@ def attest(validator, known_items, speed, honesty=True):
     """
     speed = "asap": Returns an honest `Attestation` as soon as at least four seconds (`SECONDS_PER_SLOT / 3`)
     have elapsed into the slot where the validator is supposed to attest or the validator
-    has received a valid block for the attesting slot.
+    has receive a valid block for the attesting slot.
     Checks whether an attestation was produced for the same slot to avoid slashing.
     
     speed = "prudent": Returns an honest `Attestation` as soon as a block was received for the
@@ -132,6 +158,8 @@ def attest(validator, known_items, speed, honesty=True):
     # Already attested for this slot
     if validator.data.last_slot_attested == validator.data.slot:
         return None
+
+    # TODO: if already decided to not attest, should not attest!
     
     # honest attest
     return attest_base(validator, known_items, honesty)

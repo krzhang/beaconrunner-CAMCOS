@@ -120,20 +120,11 @@ class ValidatorData:
     """
 
     # custody game
-
-    # chunk_challenges_accusations: List[CustodyChunkChallenge]
-
-    # TypeError: cannot unpack non-iterable TypeDefMeta object
-
-    # accusations = *being* challenged
-
-    # chunk_challenge_sent   # different concept from above
     
-    # chunk_responses_sent: List[CustodyChunkResponse]
+    # accusations = *being* challenged
+    chunk_challenges_accusations: List[CustodyChunkChallenge, VALIDATOR_REGISTRY_LIMIT]
 
     challenged_attestations: List[Attestation, VALIDATOR_REGISTRY_LIMIT]
-    
-    sent_bit_challenges: List[CustodySlashing, VALIDATOR_REGISTRY_LIMIT]
 
 class HashableSpecStore(Container):
     """ We cache a map from current state of the `Store` to `head`, since `get_head`
@@ -215,14 +206,6 @@ class BRValidator:
 
         self.data = ValidatorData()
 
-        self.chunk_challenges_accusations = []
-        self.chunk_responses_sent = []
-
-        # self.attest = honest_attest_asap
-        # self.propose = honest_propose
-        # self.chunk_response = honest_chunk_challenge_response
-        # self.bit_challenge = honest_bit_challenge
-        
         self.attest = attest_func
         self.propose = propose_func
         self.chunk_response = chunk_response_func
@@ -243,7 +226,6 @@ class BRValidator:
         """
         """
 
-        # TODO: need to put a lot of stuff here whenever we update simulator spec
         
         self.store = get_forkchoice_store(state.copy())
 
@@ -253,8 +235,9 @@ class BRValidator:
         self.data.current_epoch = compute_epoch_at_slot(self.data.slot)
         self.data.head_root = self.get_head()
 
-        self.data.sent_bit_challenges = []
+        self.data.chunk_challenges_accusations = []
         self.data.challenged_attestations = []
+        self.data.sent_bit_challenges = []        
         
         current_state = state.copy()
         if current_state.slot < self.data.slot:
@@ -621,7 +604,7 @@ class BRValidator:
             for cha in new_chunk_challenges:
                 if cha.responder_index == self.validator_index:
 #                    print(self.validator_index, "is accused")
-                    self.chunk_challenges_accusations.append(cha)
+                    self.data.chunk_challenges_accusations.append(cha)
 
         except AssertionError as e:
             return False

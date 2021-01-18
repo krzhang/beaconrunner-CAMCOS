@@ -72,6 +72,8 @@ def knowledge_set(network: Network, validator_index: ValidatorIndex) -> Dict[str
     In general, the information a validator uses to make actions (attesting, proposing, etc.)
     """
 
+    # TODO: I think this should be updated instead of recomputed
+    
     info_sets = set(get_all_sets_for_validator(network, validator_index))
     known_attestations = [item for item in network.attestations if
                           len(set(item.info_sets) & info_sets) > 0]

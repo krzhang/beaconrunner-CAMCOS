@@ -251,10 +251,17 @@ def should_process_attestation(state: BeaconState, attestation: Attestation) -> 
 def should_process_response(state: BeaconState, response: CustodyChunkResponse) -> bool:
     matching_challenges = [
         record for record in state.custody_chunk_challenge_records
-        if (record.challenge_index == response.challenge_index and record.chunk_index == response.chunk_index)]
+        if (record.challenge_index == response.challenge_index and
+            record.chunk_index == response.chunk_index)]
     if matching_challenges:
         return True
     return False
+
+def should_process_bit_challenge(state: BeaconState, bit_challenge: CustodySlashing) -> bool:
+    """ Basically: did the state already process this challenge?"""
+    if bit_challenge in state.bit_challenge_records:
+        return False
+    return True
 
 def honest_propose_base(validator, known_items):
     """
@@ -318,19 +325,23 @@ def honest_propose_base(validator, known_items):
 
     # Publishing Bit Challenges
 
-    # bit_challenges = [b.item for b in known_items["bit_challenges"]
-    #                   if should_proceess_bit_challenge(processed_state, b.item)]
+    bit_challenges = [b.item for b in known_items["bit_challenges"]
+                      if should_process_bit_challenge(processed_state, b.item)]
     
     # if not bit_challenge_record:
     #     return None
-    # bit_challenge_accepted = random.choice(bit_challenge_record)
-    # print(bit_challenge_accepted.whistleblower_index, "'s bit challenge to", bit_challenge_accepted.malefactor_index,"got accepted")
+    if bit_challenges:
+        bit_challenge_accepted = random.choice(bit_challenges)
+        custody_slashings = [bit_challenge_accepted]
+        print(bit_challenge_accepted.whistleblower_index, "'s bit challenge to", bit_challenge_accepted.malefactor_index,"processed on-chain")
+    else:
+        custody_slashings = []
 
     beacon_block_body = BeaconBlockBody(
         attestations=attestations,
         chunk_challenges=chunk_challenges,
         chunk_challenge_responses=chunk_responses,
-#        custody_slashings=bit_challenge_accepted
+        custody_slashings=[]
     )
     epoch_signature = get_epoch_signature(processed_state, beacon_block, validator.privkey)
     beacon_block_body.randao_reveal = epoch_signature
@@ -377,14 +388,14 @@ def honest_propose(validator, known_items):
     return honest_propose_base(validator, known_items)
 
 def honest_chunk_challenge_response(validator, known_items):
-    if validator.chunk_challenges_accusations: # has outstanding accusation
-        record = validator.chunk_challenges_accusations[-1]
+    if validator.data.chunk_challenges_accusations: # has outstanding accusation
+        record = validator.data.chunk_challenges_accusations[-1]
         response = CustodyChunkResponse(
           challenge_index = record.challenge_index,
           chunk_index = record.chunk_index
         )
         validator.log_chunk_response(response)
-        validator.chunk_challenges_accusations = validator.chunk_challenges_accusations[:-1]
+        validator.data.chunk_challenges_accusations = validator.data.chunk_challenges_accusations[:-1]
 #        validator.chunk_challenge_sent.append(response)
         print(validator.validator_index, "responds to challenge", response)
         return response
@@ -417,28 +428,26 @@ def bit_challenge_base(validator, known_items, honesty=True):
     attestor_index = network_attestation.attestor
     attestation = network_attestation.item 
 
+    if attestation.accuracy:
+    #    accuracy_text = "(accurate)"
+        challenger_text = "(incorrectly)"
+    else:
+    #    accuracy_text = "(inaccurate)"
+        challenger_text = "(correctly)"
+
+    print("  ", validator.validator_index,
+          challenger_text, "bit challenging", attestor_index,
+          "[%s]" % attestation.data.slot)
+
     bit_challenge = CustodySlashing(
         #Full CustodySlashing to be added later
         malefactor_index = attestor_index,
         whistleblower_index = validator.validator_index
     )
+
     validator.log_bit_challenge(bit_challenge)
-
-    # TODO: 
-    # bit_challenge_record.append(bit_challenge)
-    # instead of something "global," we should have a record like custody_chunk_challenge_records
-    # inside BeaconState, and update that with process_custody_slashing
-
     validator.data.challenged_attestations.append(attestation)
-    validator.data.sent_bit_challenges.append(bit_challenge)
 
-    if attestation.accuracy:
-        accuracy_text = "(accurate)"
-    else:
-        accuracy_text = "(inaccurate)"
-
-    print("  ", validator.validator_index, " bit challenging", attestor_index, accuracy_text,
-          "[%s]" % attestation.data.slot)
     return bit_challenge
 
 def bit_challenge(validator, known_items, honesty=True):

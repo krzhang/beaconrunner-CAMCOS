@@ -468,7 +468,8 @@ class BeaconState(Container):
                                     EARLY_DERIVED_SECRET_PENALTY_MAX_FUTURE_EPOCHS]
     custody_chunk_challenge_records: List[CustodyChunkChallengeRecord, MAX_CUSTODY_CHUNK_CHALLENGE_RECORDS]
     custody_chunk_challenge_index: uint64
-
+    # [CHANGED] new
+    bit_challenge_records: List[CustodySlashing, MAX_CUSTODY_CHUNK_CHALLENGE_RECORDS]
 
 class VoluntaryExit(Container):
     epoch: Epoch  # Earliest epoch when voluntary exit can be processed
@@ -2271,6 +2272,8 @@ def process_custody_slashing(state: BeaconState, signed_custody_slashing: Signed
     attesters = get_attesting_indices(state, attestation.data, attestation.aggregation_bits)
     assert custody_slashing.malefactor_index in attesters
 
+    state.bit_challenge_records.append(custody_slashing)
+    
     # Verify the malefactor custody key
     epoch_to_sign = get_randao_epoch_for_custody_period(
         get_custody_period_for_validator(custody_slashing.malefactor_index, attestation.data.target.epoch),

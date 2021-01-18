@@ -308,7 +308,7 @@ def honest_propose_base(validator, known_items):
         )
         chunk_challenges.append(cha)
 
-    challenged = " ".join(["%d [%d]" % (cha.responder_index, cha.chunk_index) for cha in chunk_challenges])
+    challenged = ", ".join(["%d [%d]" % (cha.responder_index, cha.chunk_index) for cha in chunk_challenges])
     if challenged:
         print("  %d chunk challenges" % (validator.validator_index), challenged)
 

@@ -36,11 +36,6 @@ print("observers implemented!")
 
 # And define a "main" function -- in this case, simulate_thunderdome -- to run the simulation. The function returns a pandas dataframe containing the metrics recorded throughout the run.
 
-# from beaconrunner.validators.ASAPValidator import ASAPValidator
-# from beaconrunner.validators.PrudentValidator import PrudentValidator
-
-
-# attest_funcs = [brs.honest_attest_asap, brs.dishonest_attest_asap]
 attest_funcs = [brs.honest_attest_asap, brs.dishonest_attest_asap]
 propose_funcs = [brs.honest_propose]
 chunk_response_funcs = [brs.honest_chunk_challenge_response]
@@ -93,8 +88,6 @@ df = pd.concat([simulate_once(network_sets,
                               SIMULATION_NUM_VALIDATORS,
                               network_update_rate) for num_run in range(num_runs)])
 
-# To do a fair amount of runs (40) simulating a good number of epochs (20), we set a low number of validators (12). Since we are more interested in comparing individual rewards between ASAP and prudent validators rather than macro-properties or even scalability of the chain, this is not a bad thing to do (and it speeds things up quite a bit).
-
 # the shape of our df is (721, 10). To break it down:
 # there are 10 columns; the columns interesting to us are ["average_balance_honest_attestors", "average_balance_dishonest_attestors", "current_slot"]]
 # there are 721 rows (why?)
@@ -103,14 +96,14 @@ df = pd.concat([simulate_once(network_sets,
 #   so in this case (3*4) * 12 * 1 = 144
 #   where the hell is the 5x coming from? # guess might be the 5 psubs?
 # the 5x is also the thing that seems to average over a count of 60
+
 print ("simulation done!")
 
-# Since we have 4 slots per epoch, and 20 epochs, let's read the average balances at slot 81, after the 20th epoch rewards and penalties were computed.
+# Since we have 4 slots per epoch, we read the average balances at slot 81, after the last epoch
+# rewards and penalties were computed.
 
 slot_to_check = SIMULATION_NUM_EPOCHS * 4 + 1
-# slot_to_check = SIMULATION_NUM_EPOCHS * 4
-
-# need to print since this returns a dataframe
 
 result = df[df.current_slot == slot_to_check][["average_balance_honest_attestors", 'average_balance_dishonest_attestors']].describe()
+
 print (result)

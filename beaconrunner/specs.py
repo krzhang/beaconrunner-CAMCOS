@@ -552,6 +552,7 @@ class SignedAggregateAndProof(Container):
 
 
 # # Sharding stuff
+# [CHANGED] commented out for version 1
 
 # class ShardBlock(Container):
 #     shard_parent_root: Root
@@ -2238,7 +2239,6 @@ def process_chunk_challenge_response(state: BeaconState,
     state.custody_chunk_challenge_records[index_in_records] = CustodyChunkChallengeRecord()
     # Reward the proposer
     proposer_index = get_beacon_proposer_index(state)
-    # print("Challenge ", record.challenge_index, "Validator ", challenge.responder_index, "succeeds; Validator", challenge.challenger_index, "is rewarded.")
     increase_balance(state, proposer_index, Gwei(get_base_reward(state, proposer_index) // MINOR_REWARD_QUOTIENT))
 
 def process_custody_slashing(state: BeaconState, custody_slashing: CustodySlashing) -> None:
@@ -2251,14 +2251,15 @@ def process_custody_slashing(state: BeaconState, custody_slashing: CustodySlashi
     whistleblower = state.validators[custody_slashing.whistleblower_index]
     domain = get_domain(state, DOMAIN_CUSTODY_BIT_SLASHING, get_current_epoch(state))
     signing_root = compute_signing_root(custody_slashing, domain)
+
+    # [CHANGED]: some of these assertions fail in the simulation; not sure why; probably
+    # due to some nerfed features
+
     # assert bls.Verify(whistleblower.pubkey, signing_root, signed_custody_slashing.signature)
     # Verify that the whistleblower is slashable
     # assert is_slashable_validator(whistleblower, get_current_epoch(state))
     # Verify that the claimed malefactor is slashable
     # assert is_slashable_validator(malefactor, get_current_epoch(state))
-
-    # [CHANGED]: this assertion fails in the simulation; not sure why; probably due to some
-    #            nerfed features
     # # Verify the attestation
     # assert is_valid_indexed_attestation(state, get_indexed_attestation(state, attestation))
 

@@ -68,6 +68,8 @@ def average_balance_observer(validator_type):
         balances = [b for i, b in enumerate(current_state.balances) if i in indices]
         return br.utils.eth2.gwei_to_eth((sum(balances))/ float(len(indices)))
     return obs_func
+
+# The following two pieces of code should be made obseolete by above
   
 # def average_balance_prudent(state):
 #     validators = state["network"].validators

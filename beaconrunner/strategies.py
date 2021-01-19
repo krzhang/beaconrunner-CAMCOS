@@ -28,11 +28,12 @@ from eth2spec.utils.ssz.ssz_impl import hash_tree_root
 from eth2spec.utils.ssz.ssz_typing import Container, List, uint64, Bitlist
 from eth2spec.test.helpers.keys import pubkeys, pubkey_to_privkey
 
-# actually 0.999
+# probability that a person is supposed to attest (equiv to custody bit 0)
+# actually 0.999, but 0.9 for testing purposes.
 ASSIGNED_ATTEST_CHANCE = 0.9 
-# probability a dishonest person writes a custody bit
+# probability a dishonest person writes a custody bit. Eventually this
+# maybe want to be embedded into strategies themselves as an argument
 DISHONEST_ATTEST_CHANCE = 0.9
-
 
 ### Attestation strategies
 
@@ -53,11 +54,12 @@ def attest_base(validator, known_items, honesty=True):
 
     Returns:
         Attestation: The honest attestation
+
+    Recall that we are supposed to attest / not attest conditioned on the custody bit.
+    For simulation purposes, we replace not attesting by attesting a ``virtual'' attest. 
+    This allows for easier bookkeeping + potential generalization
     """
 
-    # quick reminder:
-    # you attest if your custody bit is 1
-    
     # are you supposed to attest (argh this should be decided earlier)
     should_attest = random.choices(population=[True, False],
                                    weights=[ASSIGNED_ATTEST_CHANCE,
@@ -73,8 +75,6 @@ def attest_base(validator, known_items, honesty=True):
             accuracy = True
         else:
             accuracy = False
-
-    # we will be attesting
 
     # Unpacking
     validator_index = validator.validator_index
@@ -104,10 +104,11 @@ def attest_base(validator, known_items, honesty=True):
     committee_size = len(committee)
     index_in_committee = committee.index(validator_index)
     aggregation_bits = Bitlist[MAX_VALIDATORS_PER_COMMITTEE](*([0] * committee_size))
-    # for sake of this simulation, assume the validator has sent an "empty attest" with the
+    
+    # for sake of this simulation, assume the validator has sent an "virtual attest" with the
     # aggregation bit equal to False, as opposed to not sending an attestation at all
     # (this helps us log the validator's decision)
-    # aggregation_bits[index_in_committee] = will_attest
+    
     aggregation_bits[index_in_committee] = True # set the aggregation bit of the validator to True
     
     attestation = Attestation(
@@ -296,6 +297,7 @@ def honest_propose_base(validator, known_items):
     )
 
     # publishing chunk challenges
+    
     chunk_challenges = []
     challengeable_attestations = [att for att in known_items['attestations']
                                   if att.attestor != validator.validator_index]
@@ -328,8 +330,6 @@ def honest_propose_base(validator, known_items):
     bit_challenges = [b.item for b in known_items["bit_challenges"]
                       if should_process_bit_challenge(processed_state, b.item)]
     
-    # if not bit_challenge_record:
-    #     return None
     if bit_challenges:
         bit_challenge_accepted = random.choice(bit_challenges)
         custody_slashings = [bit_challenge_accepted]
@@ -348,9 +348,6 @@ def honest_propose_base(validator, known_items):
 
     beacon_block.body = beacon_block_body
 
-#    print ("  Validator", validator.validator_index, "  about to process that block w records")
-    # for r in processed_state.custody_chunk_challenge_records:
-    #     print(r)
     process_block(processed_state, beacon_block)
     state_root = hash_tree_root(processed_state)
     beacon_block.state_root = state_root
@@ -419,7 +416,6 @@ def bit_challenge_base(validator, known_items, honesty=True):
                                       att.item not in validator.data.challenged_attestations and
                                       att.item.virtual == False
                                   )]
-    # TODO: make sure this isn't already in known_bit_challenges, when that gets implemented
     
     if not challengeable_attestations:
         return None
@@ -429,10 +425,8 @@ def bit_challenge_base(validator, known_items, honesty=True):
     attestation = network_attestation.item 
 
     if attestation.accuracy:
-    #    accuracy_text = "(accurate)"
         challenger_text = "(incorrectly)"
     else:
-    #    accuracy_text = "(inaccurate)"
         challenger_text = "(correctly)"
 
     print("  ", validator.validator_index,
@@ -440,7 +434,6 @@ def bit_challenge_base(validator, known_items, honesty=True):
           "[%s]" % attestation.data.slot)
 
     bit_challenge = CustodySlashing(
-        #Full CustodySlashing to be added later
         malefactor_index = attestor_index,
         whistleblower_index = validator.validator_index
     )
@@ -452,13 +445,12 @@ def bit_challenge_base(validator, known_items, honesty=True):
 
 def bit_challenge(validator, known_items, honesty=True):
     """ the function when we ask someone at a particular time about bit challenging"""
-    # Not the moment to attest
     
     time_in_slot = (validator.store.time - validator.store.genesis_time) % SECONDS_PER_SLOT
 
     cutoff = 9
     # the first time in the slot after which the validator considers bit challenging
-    # can play around with this later
+    # can play around with this later, as we do with prudent/ASAP/etc.
     
     # Too early in the slot
     if time_in_slot < cutoff:

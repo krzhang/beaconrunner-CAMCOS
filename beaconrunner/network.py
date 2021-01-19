@@ -41,7 +41,7 @@ class NetworkChunkResponse(object):
 @dataclass
 class NetworkCustodySlashing(object):
     """ Or "bit challenge" """
-    responder: ValidatorIndex
+    challenger: ValidatorIndex
     item: CustodySlashing
     info_sets: List[NetworkSetIndex, VALIDATOR_REGISTRY_LIMIT]
 
@@ -174,7 +174,30 @@ def disseminate_chunk_responses(network: Network, items: Sequence[Tuple[Validato
             broadcast_validators |= set(network.sets[info_set_index].validators)
 
     ask_to_check_backlog(network, broadcast_validators)
-    
+
+def disseminate_bit_challenges(network: Network, items: Sequence[Tuple[ValidatorIndex, CustodySlashing]]) -> None:
+    # Finding out who receives a new response
+    broadcast_validators = set()
+    for item in items:
+        sender = item[0]
+        challenge = item[1]
+        broadcast_list = get_all_sets_for_validator(network, sender)
+
+        # The sender records that they have sent an attestation
+        network.validators[sender].log_bit_challenge(challenge)
+
+        # Adding the attestation to network items
+        networkItem = NetworkCustodySlashing(challenger=sender,
+                                             item=challenge,
+                                             info_sets=broadcast_list)
+        network.bit_challenges.append(networkItem)
+
+        # Update list of validators who received a new item
+        for info_set_index in broadcast_list:
+            broadcast_validators |= set(network.sets[info_set_index].validators)
+
+    ask_to_check_backlog(network, broadcast_validators)
+
 def update_network(network: Network) -> None:
     """
     The "heartbeat" of the network. When called, items propagate one step further on the network.

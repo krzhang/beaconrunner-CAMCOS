@@ -20,6 +20,7 @@ from .network import (
     disseminate_attestations,
     disseminate_block,
     disseminate_chunk_responses,
+    disseminate_bit_challenges,
     knowledge_set,
 )
 
@@ -104,7 +105,6 @@ def update_blocks(_params, step, sL, s, _input):
     network = s["network"]
     for block in _input["blocks"]:
         disseminate_block(network, block.message.proposer_index, block)
-
     return ('network', network)
 
 def update_chunk_responses(_params, step, sL, s, _input):
@@ -118,7 +118,8 @@ def update_chunk_responses(_params, step, sL, s, _input):
 def update_bit_challenges(_params, step, sL, s, _input):
 
     network = s["network"]
-
+    disseminate_bit_challenges(network, _input["bit_challenges"])
+    
     return ('network', network)
   
 ## Policies
@@ -185,9 +186,9 @@ def bit_challenge_policy(_params, step, sL, s):
         known_items = knowledge_set(network, validator_index)
         bit_challenge = validator.bit_challenge(validator, known_items)
         if bit_challenge is not None:
-            bit_challenges.append(bit_challenge)
+            bit_challenges.append([validator_index, bit_challenge])
 
-    return ({ 'bit_challenges': bit_challenges })
+    return ({ 'bit_challenges': bit_challenges})
  
 ### Simulator shell
 

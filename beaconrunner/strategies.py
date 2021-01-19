@@ -341,7 +341,7 @@ def honest_propose_base(validator, known_items):
         attestations=attestations,
         chunk_challenges=chunk_challenges,
         chunk_challenge_responses=chunk_responses,
-        custody_slashings=[]
+        custody_slashings=custody_slashings
     )
     epoch_signature = get_epoch_signature(processed_state, beacon_block, validator.privkey)
     beacon_block_body.randao_reveal = epoch_signature

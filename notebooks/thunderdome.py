@@ -28,8 +28,10 @@ current_slot = lambda s: s["network"].validators[0].data.slot
 
 observers = {
     "current_slot": current_slot,
-    "average_balance_honest_attestors": tp.average_balance_observer("honest_attest_asap"),
-    "average_balance_dishonest_attestors": tp.average_balance_observer("dishonest_attest_asap")
+    "AB_honest_attestors": tp.average_balance_observer("honest_attest_asap"),
+    "AB_dishonest_attestors": tp.average_balance_observer("dishonest_attest_asap"),
+    "AB_honest_bit_challengers": tp.average_balance_observer("honest_bit_challenge"),
+    "AB_dishonest_bit_challengers": tp.average_balance_observer("dishonest_bit_challenge")
 }
 
 print("observers implemented!")
@@ -104,6 +106,10 @@ print ("simulation done!")
 
 slot_to_check = SIMULATION_NUM_EPOCHS * 4 + 1
 
-result = df[df.current_slot == slot_to_check][["average_balance_honest_attestors", 'average_balance_dishonest_attestors']].describe()
+result = df[df.current_slot == slot_to_check][["AB_honest_attestors", 'AB_dishonest_attestors']].describe()
 
 print (result)
+
+result2 = df[df.current_slot == slot_to_check][["AB_honest_bit_challengers", 'AB_dishonest_bit_challengers']].describe()
+
+print(result2)
